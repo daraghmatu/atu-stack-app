@@ -1,0 +1,13 @@
+
+# Python virtual environment
+venv/
+
+# Environmental variables that should NOT be shared
+.env
+
+# Compiled files
+__pycache__/
+*.pyc
+
+# Insert statements with names
+DB/player_inserts.sql
