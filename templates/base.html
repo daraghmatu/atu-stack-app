@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}ATU Stack{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-3">
+        <a class="navbar-brand" href="{{ url_for('dashboard') }}">ATU Stack</a>
+        {% if current_user.is_authenticated %}
+            <div class="ms-auto">
+                <span class="text-white me-3">Welcome, {{ current_user.firstname }}</span>
+                <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light">Logout</a>
+            </div>
+        {% endif %}
+    </nav>
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="alert alert-info">
+                    {{ messages[0] }}
+                </div>
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

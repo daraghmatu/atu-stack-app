@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel{% endblock %}
+{% block content %}
+<h2>Admin Panel</h2>
+
+<form method="post">
+    <div class="mb-3">
+        <label>Set Isolation Level:</label>
+        <select name="isolation_level" class="form-select">
+            <option value="READ UNCOMMITTED">READ UNCOMMITTED</option>
+            <option value="READ COMMITTED">READ COMMITTED</option>
+            <option value="REPEATABLE READ">REPEATABLE READ</option>
+            <option value="SERIALIZABLE">SERIALIZABLE</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-danger">Apply</button>
+</form>
+
+<form method="post" class="mt-4">
+    <button name="toggle_round" value="start" class="btn btn-primary">Start Round</button>
+    <button name="toggle_round" value="stop" class="btn btn-secondary">Stop Round</button>
+</form>
+{% endblock %}

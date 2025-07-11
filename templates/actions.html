@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Actions{% endblock %}
+{% block content %}
+<h2>Take Action</h2>
+<form method="post">
+    <div class="mb-3">
+        <label>Action Type:</label>
+        <select name="action" class="form-select">
+            <option value="build">Build Structure</option>
+            <option value="trade">Trade Resources</option>
+        </select>
+    </div>
+    <div class="mb-3">
+        <label>Target:</label>
+        <input type="text" name="target" class="form-control" placeholder="e.g. pass_module, noodles, caffeine">
+    </div>
+    <button type="submit" class="btn btn-success">Submit</button>
+</form>
+{% endblock %}
