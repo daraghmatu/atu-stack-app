@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ATU Stack - How to Play</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f9f9f9;
+            color: #333;
+            max-width: 900px;
+            margin: 30px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        .emoji {
+            font-size: 1.2em;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+        }
+        th, td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #ccc;
+            text-align: left;
+        }
+        .important {
+            background-color: #fff4e6;
+            border-left: 4px solid #f39c12;
+            padding: 10px;
+            margin: 20px 0;
+        }
+        .login-button {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 12px 24px;
+            background-color: #2c3e50;
+            color: white;
+            text-decoration: none;
+            font-size: 1rem;
+            border-radius: 6px;
+        }
+        .login-button:hover {
+            background-color: #34495e;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🎓 Welcome to ATU Stack, the Uni Resource Game!</h1>
+
+    <p>
+        Earn as many <strong>🎓 Credits</strong> as possible before time runs out! Spend resources to complete tasks, 
+        but beware of the hangovers...
+    </p>
+
+    <h2>🧍 Starting Resources</h2>
+    <ul>
+        <li>🍕 Pizza: <strong>3</strong></li>
+        <li>☕ Coffee: <strong>3</strong></li>
+        <li>😴 Sleep: <strong>3</strong></li>
+        <li>📖 Study: <strong>3</strong></li>
+        <li>🎓 Credits: <strong>0</strong></li>
+    </ul>
+
+    <h2>⚙️ Actions</h2>
+
+    <h3>1. ✅ Collect Resource</h3>
+    <p>
+        Click to collect <strong>+1 random resource</strong> (pizza, coffee, sleep, or study).<br>
+        Can be done every 30 seconds.
+    </p>
+    <div class="important">
+        ☠️ <strong>Hangover Risk:</strong><br>
+        Each collect increases your chance of a <strong>hangover event</strong>, which steals <strong>half of all your resources</strong> (but not credits).<br><br>
+        Hangover chances:
+        <ul>
+            <li>1st collect: 0%</li>
+            <li>2nd: 5%</li>
+            <li>3rd: 10%</li>
+            <li>4th: 15%</li>
+            <li>5th: 20%</li>
+            <li>6th and beyond: <strong>25% max</strong></li>
+        </ul>
+    </div>
+
+    <h3>2. 📚 Submit Task</h3>
+    <p>Spend resources to earn 🎓 Credits!</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Task</th>
+                <th>Cost</th>
+                <th>Reward</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>CA Quiz</td>
+                <td>1 📖 Study, 1 😴 Sleep</td>
+                <td>1 🎓 Credits</td>
+            </tr>
+            <tr>
+                <td>Assignment</td>
+                <td>1 🍕 Pizza, 2 📖 Study, 1 ☕ Coffee</td>
+                <td>2 🎓 Credits</td>
+            </tr>
+            <tr>
+                <td>Exam</td>
+                <td>2 🍕 Pizza, 2 📖 Study, 2 ☕ Coffee, 2 😴 Sleep</td>
+                <td>5 🎓 Credits</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>3. 🔄 Trade</h3>
+    <p>Offer resources to others and accept trades. Great way to balance your inventory!</p>
+
+    <h3>4. 📊 View Leaderboard</h3>
+    <p>See who’s winning the academic arms race in real time.</p>
+
+    <h2>🛠️ Admin Controls</h2>
+    <ul>
+        <li>⏱️ Set game start/end time</li>
+        <li>🧹 Reset game between lectures</li>
+        <li>📜 View logs (actions, trades, hangovers)</li>
+    </ul>
+
+    <hr>
+    <p><em>This game is about resource management, strategy, and a bit of chaos.</em></p>
+
+    <a class="login-button" href="/login">🔐 Log In to Play</a>
+
+</body>
+</html>
