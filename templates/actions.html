@@ -1,19 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Actions{% endblock %}
 {% block content %}
-<h2>Take Action</h2>
-<form method="post">
-    <div class="mb-3">
-        <label>Action Type:</label>
-        <select name="action" class="form-select">
-            <option value="build">Build Structure</option>
-            <option value="trade">Trade Resources</option>
-        </select>
-    </div>
-    <div class="mb-3">
-        <label>Target:</label>
-        <input type="text" name="target" class="form-control" placeholder="e.g. pass_module, noodles, caffeine">
-    </div>
-    <button type="submit" class="btn btn-success">Submit</button>
-</form>
+<h2>🕹️ Choose Your Action</h2>
+
+<ul>
+  <li><a href="{{ url_for('collect') }}">🍀 Collect Resource</a></li>
+  <li><a href="{{ url_for('submit_task') }}">📝 Submit Task</a></li>
+  <li><a href="{{ url_for('trade') }}">🤝 Trade Resources</a></li>
+  <li><a href="{{ url_for('leaderboard') }}">📊 View Leaderboard</a></li>
+</ul>
+
+<a href="{{ url_for('dashboard') }}">⬅️ Back to Dashboard</a>
+
 {% endblock %}

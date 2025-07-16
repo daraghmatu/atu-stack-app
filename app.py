@@ -45,7 +45,7 @@ def load_user(user_id):
 
 @app.route('/')
 def index():
-    return redirect(url_for('login'))
+    return render_template('rules.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -75,7 +75,7 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    # Fetch player's resources
+    # Fetch player resources
     cursor.execute("""
         SELECT r.name, pr.quantity
         FROM player_resources pr
@@ -84,28 +84,21 @@ def dashboard():
     """, (current_user.id,))
     resources = cursor.fetchall()
 
-    # Fetch player's structures
+    # Fetch player's total credits
     cursor.execute("""
-        SELECT s.name, count(ps.structure_id)
-        FROM player_structures ps
-        JOIN structures s ON ps.structure_id = s.structure_id
-        WHERE ps.player_id = %s
-        GROUP BY ps.structure_id
+        SELECT credits
+        FROM players
+        WHERE player_id = %s
     """, (current_user.id,))
-    structures = cursor.fetchall()
+    result = cursor.fetchone()
+    credits = result['credits']
 
-    return render_template('dashboard.html', resources=resources, structures=structures)
+    return render_template('dashboard.html', resources=resources, credits=credits)
 
-@app.route('/actions', methods=['GET', 'POST'])
+
+@app.route('/actions')
 @login_required
 def actions():
-    if request.method == 'POST':
-        action = request.form['action']
-        target = request.form['target']
-        # Implement logic for 'build' or 'trade'
-        flash(f"Action '{action}' on '{target}' submitted.")
-        # (You’ll build these handlers soon)
-        return redirect(url_for('dashboard'))
     return render_template('actions.html')
 
 @app.route('/admin', methods=['GET', 'POST'])

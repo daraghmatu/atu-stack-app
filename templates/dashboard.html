@@ -1,27 +1,21 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
+
 {% block content %}
-<h2>Your Dashboard</h2>
+<h2 class="mb-4">Your Dashboard</h2>
 
 <h4>Resources</h4>
 <ul class="list-group">
     {% for r in resources %}
         <li class="list-group-item d-flex justify-content-between align-items-center">
-            {{ r.name }}
+            {{ r.name | capitalize }}
             <span class="badge bg-primary rounded-pill">{{ r.quantity }}</span>
         </li>
     {% endfor %}
 </ul>
 
-<h4 class="mt-4">Structures</h4>
-<ul class="list-group">
-    {% for s in structures %}
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-            {{ s.name }}
-            <span class="badge bg-success rounded-pill">{{ s.count }}</span>
-        </li>
-    {% endfor %}
-</ul>
+<h4 class="mt-4">Credits</h4>
+<p><strong>{{ credits }}</strong></p>
 
 <div class="mt-4">
     <a href="{{ url_for('actions') }}" class="btn btn-outline-primary">Take Action</a>
