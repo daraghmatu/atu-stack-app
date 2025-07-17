@@ -43,6 +43,7 @@ def load_user(user_id):
 
 # ---- Routes ----
 
+# Base routes
 @app.route('/')
 def index():
     return render_template('rules.html')
@@ -116,6 +117,31 @@ def admin():
         elif request.form.get('toggle_round') == 'stop':
             flash("Round stopped.")
     return render_template('admin.html')
+
+# Action routes
+@app.route('/actions/collect')
+@login_required
+def collect():
+    return render_template('actions/collect.html')
+
+
+@app.route('/actions/submit')
+@login_required
+def submit():
+    return render_template('actions/submit.html')
+
+
+@app.route('/actions/trade')
+@login_required
+def trade():
+    return render_template('actions/trade.html')
+
+
+@app.route('/actions/leaderboard')
+@login_required
+def leaderboard():
+    return render_template('actions/leaderboard.html')
+
 
 # ---- Run ----
 if __name__ == '__main__':
