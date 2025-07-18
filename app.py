@@ -4,6 +4,8 @@ import mysql.connector
 import bcrypt
 from dotenv import load_dotenv
 import os
+import random
+from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
@@ -96,7 +98,7 @@ def dashboard():
 
     # Fetch player history
     cursor.execute("""
-        SELECT action_type, details, credits_earned, timestamp
+        SELECT action_type, description, credits_earned, timestamp
         FROM player_history
         WHERE player_id = %s
         ORDER BY timestamp DESC
@@ -120,7 +122,7 @@ def dashboard():
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
 def admin():
-    # In production you'd check for admin role here
+    # ***************** In production you'd check for admin role here
     if request.method == 'POST':
         if 'isolation_level' in request.form:
             level = request.form['isolation_level']
@@ -139,11 +141,110 @@ def actions():
     return render_template('actions.html')
 
 # Action routes
-@app.route('/actions/collect')
+@app.route('/actions/collect', methods=['GET'])
 @login_required
-def collect():
-    return render_template('actions/collect.html')
+def show_collect_page():
+    player_id = current_user.id
 
+    # Get last collect time + num collects
+    cursor.execute("""
+        SELECT MAX(timestamp) as tm, MAX(collect_num) as cn
+        FROM collect_log
+        WHERE player_id = %s
+    """, (player_id,))
+    last_collect = cursor.fetchone()
+
+    last_time = last_collect['tm']
+    collect_count = last_collect['cn'] or 0
+    hangover_chance = min(max(collect_count * 5, 0), 25)
+
+    # Block if too early
+    if last_time:
+        if datetime.now() - last_time < timedelta(seconds=30):
+            flash("⏳ You must wait 30 seconds between collections.", "warning")
+            return redirect(url_for('dashboard'))
+
+    return render_template("actions/collect.html",
+                           hangover_chance=hangover_chance,
+                           collect_count=collect_count)
+
+@app.route('/actions/collect/confirm', methods=['POST'])
+@login_required
+def perform_collect():
+    player_id = current_user.id
+
+    # Get last collect time + num collects
+    cursor.execute("""
+        SELECT MAX(collect_num) as cn
+        FROM collect_log
+        WHERE player_id = %s
+    """, (player_id,))
+    last_collect = cursor.fetchone()
+    collect_count = last_collect['cn'] or 0
+
+    # Determine hangover chance
+    hangover_chance = min(max(collect_count * 5, 0), 25)
+    got_hangover = random.randint(1, 100) <= hangover_chance
+
+    if got_hangover:
+		# Halve player resources
+        cursor.execute("""
+            UPDATE player_resources
+            SET quantity = FLOOR(quantity / 2)
+            WHERE player_id = %s
+        """, (player_id,))
+        db.commit()
+
+        cursor.execute("""
+            INSERT INTO player_history (player_id, action_type, description, timestamp)
+            VALUES (%s, 'hangover', '😵 Hangover! Resources halved.', NOW())
+        """, (player_id,))
+        db.commit()
+
+        flash("😵 Oh no! Hangover. Your resources were halved.", "danger")
+    else:
+		# Pick random resoource
+        cursor.execute("SELECT resource_id, name FROM resources")
+        resources = cursor.fetchall()
+        chosen = random.choice(resources)
+        res_id = chosen['resource_id']
+        res_name = chosen['name']
+
+		# Plus one to resource
+        cursor.execute("""
+            INSERT INTO player_resources (player_id, resource_id, quantity)
+            VALUES (%s, %s, 1)
+            ON DUPLICATE KEY UPDATE quantity = quantity + 1
+        """, (player_id, res_id))
+        db.commit()
+
+        description = f'Collected 1x {res_name}'
+
+        if res_name == 'pizza':
+            description = description + ' 🍕'
+        elif res_name == 'coffee':
+            description = description + ' ☕'
+        elif res_name == 'sleep':
+            description = description + ' 😴'
+        elif res_name == 'study':
+            description = description + ' 📖'
+
+        cursor.execute("""
+            INSERT INTO player_history (player_id, action_type, description, timestamp)
+            VALUES (%s, 'collect', %s, NOW())
+        """, (player_id, description))
+        db.commit()
+
+        flash(f"🍀 You collected 1x {res_name}!", "success")
+
+    # Log collect with incremented collect number
+    cursor.execute("""
+        INSERT INTO collect_log (player_id, collect_num, timestamp)
+        VALUES (%s, %s, NOW())
+    """, (player_id, collect_count + 1))
+    db.commit()
+
+    return redirect(url_for('dashboard'))
 
 @app.route('/actions/submit')
 @login_required

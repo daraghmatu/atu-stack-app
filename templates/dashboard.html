@@ -30,7 +30,7 @@
         {% for record in history %}
             <li class="list-group-item">
                 {{ record.timestamp.strftime('%Y-%m-%d %H:%M') }} — 
-                <strong>{{ record.action_type|capitalize }}</strong>: {{ record.details }}
+                <strong>{{ record.action_type|capitalize }}</strong>: {{ record.description }}
                 {% if record.credits_earned > 0 %}
                     (+{{ record.credits_earned }} credits)
                 {% endif %}

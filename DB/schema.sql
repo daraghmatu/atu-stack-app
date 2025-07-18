@@ -66,10 +66,16 @@ CREATE TABLE player_history (
     history_id INT AUTO_INCREMENT PRIMARY KEY,
     player_id INT NOT NULL,
     action_type ENUM('collect', 'submit_task', 'trade', 'hangover') NOT NULL,
-    details TEXT,
+    description TEXT,
     credits_earned INT DEFAULT 0,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (player_id) REFERENCES players(player_id)
+);
+
+CREATE TABLE collect_log (
+    player_id INT,
+    collect_num INT,
+    timestamp DATETIME
 );
 
 -- Trigger to assign starting resources

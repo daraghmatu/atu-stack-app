@@ -2,6 +2,25 @@
 {% block title %}Collect Resource{% endblock %}
 {% block content %}
 <h2>🎒 Collect Resource</h2>
-<p>You clicked to collect a resource... (logic goes here)</p>
-<a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-3">Back to Dashboard</a>
+
+<p>Your current hangover risk is <strong>{{ hangover_chance }}%</strong> based on {{ collect_count }} prior collects.</p>
+
+<div class="progress mb-3" style="height: 25px;">
+  <div class="progress-bar 
+              {% if hangover_chance < 10 %}bg-success
+              {% elif hangover_chance < 20 %}bg-warning
+              {% else %}bg-danger{% endif %}" 
+       role="progressbar" 
+       style="width: {{ hangover_chance }}%;" 
+       aria-valuenow="{{ hangover_chance }}" 
+       aria-valuemin="0" 
+       aria-valuemax="25">
+    {{ hangover_chance }}%
+  </div>
+</div>
+
+<form action="{{ url_for('perform_collect') }}" method="post">
+    <button type="submit" class="btn btn-success">Confirm Collect</button>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+</form>
 {% endblock %}
