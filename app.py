@@ -43,7 +43,7 @@ def load_user(user_id):
 
 # ---- Routes ----
 
-# Base routes
+# Main routes
 @app.route('/')
 def index():
     return render_template('rules.html')
@@ -85,7 +85,7 @@ def dashboard():
     """, (current_user.id,))
     resources = cursor.fetchall()
 
-    # Fetch player's total credits
+    # Fetch player credits
     cursor.execute("""
         SELECT credits
         FROM players
@@ -94,13 +94,17 @@ def dashboard():
     result = cursor.fetchone()
     credits = result['credits']
 
-    return render_template('dashboard.html', resources=resources, credits=credits)
+    # Fetch player history
+    cursor.execute("""
+        SELECT action_type, details, credits_earned, timestamp
+        FROM player_history
+        WHERE player_id = %s
+        ORDER BY timestamp DESC
+        LIMIT 10
+    """, (current_user.id,))
+    history = cursor.fetchall()
 
-
-@app.route('/actions')
-@login_required
-def actions():
-    return render_template('actions.html')
+    return render_template('dashboard.html', resources=resources, credits=credits, history=history)
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
@@ -117,6 +121,11 @@ def admin():
         elif request.form.get('toggle_round') == 'stop':
             flash("Round stopped.")
     return render_template('admin.html')
+
+@app.route('/actions')
+@login_required
+def actions():
+    return render_template('actions.html')
 
 # Action routes
 @app.route('/actions/collect')
