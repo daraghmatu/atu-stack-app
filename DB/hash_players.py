@@ -6,8 +6,8 @@ import re
 with open('2425_game_players.csv', newline='', encoding='utf-8-sig') as csvfile:
     reader = csv.DictReader(csvfile)
     for row in reader:
-        firstname = row['first_name']
-        lastname = row['last_name']
+        firstname = row['first_name'].title()
+        lastname = row['last_name'].title()
         email = row['email_address']
 
         username = (firstname[0] + re.sub(r'[^a-zA-Z]', '', lastname)).lower()
