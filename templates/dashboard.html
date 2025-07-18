@@ -5,14 +5,15 @@
 
 <h2 class="mb-4">🎮 Player Dashboard</h2>
 
-<h4 class="mt-4">🎓 Your Credits</h4>
-<p><strong>{{ credits }}</strong> credits earned</p>
+<h4 class="mt-4">🎓 Performance</h4>
+<p><strong>Credits:</strong> {{ credits }}</p>
+<p><strong>Rank:</strong> {{ rank }}</p>
 
 <div class="mt-4">
     <a href="{{ url_for('actions') }}" class="btn btn-outline-primary">➡️ Take Action</a>
 </div>
 
-<h4 class="mt-4">📦 Your Resources</h4>
+<h4 class="mt-4">📦 Resources</h4>
 <ul class="list-group">
     {% for r in resources %}
         <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -22,7 +23,7 @@
     {% endfor %}
 </ul>
 
-<h4 class="mt-4">🕰️ Your Recent Game History</h4>
+<h4 class="mt-4">🕰️ Recent Game History</h4>
 
 {% if history %}
     <ul class="list-group">

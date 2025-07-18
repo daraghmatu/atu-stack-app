@@ -104,7 +104,18 @@ def dashboard():
     """, (current_user.id,))
     history = cursor.fetchall()
 
-    return render_template('dashboard.html', resources=resources, credits=credits, history=history)
+    # Player Rank
+    cursor.execute("""
+        SELECT COUNT(*) + 1 as p_rank
+        FROM players
+        WHERE credits > (
+            SELECT credits FROM players WHERE player_id = %s
+        )
+    """, (current_user.id,))
+    result = cursor.fetchone()
+    rank = result['p_rank']
+    
+    return render_template('dashboard.html', resources=resources, credits=credits, history=history, rank=rank)
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
@@ -145,12 +156,16 @@ def submit():
 def trade():
     return render_template('actions/trade.html')
 
-
 @app.route('/actions/leaderboard')
 @login_required
 def leaderboard():
-    return render_template('actions/leaderboard.html')
-
+    cursor.execute("""
+        SELECT firstname, lastname, credits
+        FROM players
+        ORDER BY credits DESC, lastname
+    """)
+    leaderboard = cursor.fetchall()
+    return render_template('actions/leaderboard.html', leaderboard=leaderboard)
 
 # ---- Run ----
 if __name__ == '__main__':

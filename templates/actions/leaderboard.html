@@ -2,6 +2,27 @@
 {% block title %}Leaderboard{% endblock %}
 {% block content %}
 <h2>🏆 Leaderboard</h2>
-<p>See how you rank against other students based on credits.</p>
-<a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-3">Back to Dashboard</a>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Rank</th>
+            <th>Player</th>
+            <th>Credits</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for player in leaderboard %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ player.firstname }} {{ player.lastname }}</td>
+            <td>{{ player.credits }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="mt-3">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-3">Back to Dashboard</a>
+</div>
 {% endblock %}
