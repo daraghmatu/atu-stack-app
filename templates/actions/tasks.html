@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Submit Task{% endblock %}
+{% block content %}
+
+<h2>📝 Submit Task</h2>
+
+<h4>Your Resources</h4>
+<ul>
+    {% for name, qty in resources.items() %}
+        <li>{{ name.capitalize() }}: {{ qty }}</li>
+    {% endfor %}
+</ul>
+
+{% for task in tasks %}
+  <form action="{{ url_for('perform_submit_task') }}" method="post" class="mb-4">
+    <input type="hidden" name="task_id" value="{{ task.task_id }}">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title">{{ task.name }}</h5>
+        <p class="card-text mb-2">
+          <strong>Cost:</strong>
+          🍕 {{ task.pizza_cost }},
+          ☕ {{ task.coffee_cost }},
+          😴 {{ task.sleep_cost }},
+          📖 {{ task.study_cost }}
+        </p>
+        <p class="card-text">
+          <strong>Reward:</strong> 🎓 {{ task.credit_reward }} Credits
+        </p>
+        <button type="submit" class="btn btn-success">Submit Task</button>
+      </div>
+    </div>
+  </form>
+{% endfor %}
+
+<a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary mt-3">Cancel</a>
+{% endblock %}

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Leaderboard{% endblock %}
 {% block content %}
+
 <h2>🏆 Leaderboard</h2>
 
 <table class="table table-striped">
@@ -14,7 +15,7 @@
     <tbody>
         {% for player in leaderboard %}
         <tr>
-            <td>{{ loop.index }}</td>
+            <td>{{ player.p_rank }}</td>
             <td>{{ player.firstname }} {{ player.lastname }}</td>
             <td>{{ player.credits }}</td>
         </tr>

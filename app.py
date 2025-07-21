@@ -39,7 +39,6 @@ def load_user(user_id):
     cursor.execute("SELECT * FROM players WHERE player_id = %s", (user_id,))
     user = cursor.fetchone()
     if user:
-        #return User(id=user['id'], firstname=user['first_name'])
         return User(id=user['player_id'], firstname=user['firstname'])
     return None
 
@@ -218,7 +217,7 @@ def perform_collect():
         """, (player_id, res_id))
         db.commit()
 
-        description = f'Collected 1x {res_name}'
+        description = f'1x {res_name}'
 
         if res_name == 'pizza':
             description = description + ' 🍕'
@@ -246,11 +245,90 @@ def perform_collect():
 
     return redirect(url_for('dashboard'))
 
-@app.route('/actions/submit')
+@app.route('/actions/tasks', methods=['GET'])
 @login_required
-def submit():
-    return render_template('actions/submit.html')
+def submit_task_page():
+    player_id = current_user.id
 
+    # Get all tasks
+    cursor.execute("SELECT * FROM tasks")
+    tasks = cursor.fetchall()
+
+    # Get player's current resources
+    cursor.execute("""
+        SELECT r.name, pr.quantity
+        FROM resources r
+        LEFT JOIN player_resources pr 
+        ON r.resource_id = pr.resource_id AND pr.player_id = %s
+    """, (player_id,))
+    resources = {row['name']: row['quantity'] or 0 for row in cursor.fetchall()}
+
+    return render_template('actions/tasks.html', tasks=tasks, resources=resources)
+
+@app.route('/actions/tasks', methods=['POST'])
+@login_required
+def perform_submit_task():
+    player_id = current_user.id
+    task_id = int(request.form['task_id'])
+
+    # Get task costs and reward
+    cursor.execute("SELECT * FROM tasks WHERE task_id = %s", (task_id,))
+    task = cursor.fetchone()
+
+    if not task:
+        flash("❌ Invalid task selected.", "danger")
+        return redirect(url_for('submit_task_page'))
+
+    # Get player resources as a dictionary
+    cursor.execute("""
+        SELECT r.name, pr.quantity
+        FROM resources r
+        LEFT JOIN player_resources pr
+        ON r.resource_id = pr.resource_id AND pr.player_id = %s
+    """, (player_id,))
+    player_resources = {row['name']: row['quantity'] or 0 for row in cursor.fetchall()}
+
+    # Check if player has enough of each required resource
+    requirements = {
+        'pizza': task['pizza_cost'],
+        'coffee': task['coffee_cost'],
+        'sleep': task['sleep_cost'],
+        'study': task['study_cost']
+    }
+
+    for res_name, cost in requirements.items():
+        if player_resources.get(res_name, 0) < cost:
+            flash(f"❌ Not enough {res_name}. You need {cost}.", "danger")
+            return redirect(url_for('submit_task_page'))
+
+    # Deduct resources
+    for res_name, cost in requirements.items():
+        cursor.execute("""
+            UPDATE player_resources
+            SET quantity = quantity - %s
+            WHERE player_id = %s AND resource_id = (
+                SELECT resource_id FROM resources WHERE name = %s
+            )
+        """, (cost, player_id, res_name))
+
+    # Add credits
+    cursor.execute("""
+        UPDATE players
+        SET credits = credits + %s
+        WHERE player_id = %s
+    """, (task['credit_reward'], player_id))
+
+    # Log to history
+    description = f"{task['name']} for {task['credit_reward']} credits 🎓"
+    cursor.execute("""
+        INSERT INTO player_history (player_id, action_type, description, timestamp)
+        VALUES (%s, 'task', %s, NOW())
+    """, (player_id, description))
+
+    db.commit()
+
+    flash(f"✅ Task '{task['name']}' completed! You earned {task['credit_reward']} credits.", "success")
+    return redirect(url_for('dashboard'))
 
 @app.route('/actions/trade')
 @login_required
@@ -260,10 +338,14 @@ def trade():
 @app.route('/actions/leaderboard')
 @login_required
 def leaderboard():
-    cursor.execute("""
-        SELECT firstname, lastname, credits
+    cursor.execute(""" 
+        SELECT 
+            RANK() OVER (ORDER BY credits DESC) AS p_rank,
+            firstname,
+            lastname,
+            credits
         FROM players
-        ORDER BY credits DESC, lastname
+        ORDER BY p_rank, lastname;
     """)
     leaderboard = cursor.fetchall()
     return render_template('actions/leaderboard.html', leaderboard=leaderboard)

@@ -65,7 +65,7 @@ INSERT INTO admin_settings (game_start, game_end) VALUES (NOW(), DATE_ADD(NOW(),
 CREATE TABLE player_history (
     history_id INT AUTO_INCREMENT PRIMARY KEY,
     player_id INT NOT NULL,
-    action_type ENUM('collect', 'submit_task', 'trade', 'hangover') NOT NULL,
+    action_type ENUM('collect', 'task', 'trade', 'hangover') NOT NULL,
     description TEXT,
     credits_earned INT DEFAULT 0,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
