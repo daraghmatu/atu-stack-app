@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Trade Offers{% endblock %}
+{% block content %}
+<h2>Trade Offers</h2>
+
+  {% if offers %}
+    <ul>
+      {% for offer in offers %}
+        <li>
+          {{ offer.initiator_firstname }} {{ offer.initiator_lastname }} offers
+          <strong>{{ offer.offered_quantity }} {{ offer.offered_resource }}</strong>
+          in exchange for
+          <strong>{{ offer.requested_quantity }} {{ offer.requested_resource }}</strong>.
+
+          <form action="{{ url_for('accept_trade', trade_id=offer.trade_id) }}" method="post" style="display:inline;">
+            <button type="submit">Accept</button>
+          </form>
+
+          <form action="{{ url_for('reject_trade', trade_id=offer.trade_id) }}" method="post" style="display:inline;">
+            <button type="submit">Reject</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No incoming trade offers at the moment.</p>
+  {% endif %}
+
+  <hr>
+  
+  <div>
+    <a href="{{ url_for('trade') }}" class="btn btn-secondary mt-4">Back to Trading Page</a>
+  </div>
+{% endblock %}

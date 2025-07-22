@@ -23,7 +23,8 @@ db = mysql.connector.connect(
     host=os.getenv('MYSQL_HOST'),
     user=os.getenv('MYSQL_USER'),
     password=os.getenv('MYSQL_PWD'),
-    database=os.getenv('MYSQL_SCHEMA')
+    database=os.getenv('MYSQL_SCHEMA'),
+    autocommit=True     # mysql.connector py library will open connections with autocommit OFF by default
 )
 cursor = db.cursor(dictionary=True)
 
@@ -192,13 +193,13 @@ def perform_collect():
             SET quantity = FLOOR(quantity / 2)
             WHERE player_id = %s
         """, (player_id,))
-        db.commit()
+        # db.commit()   # not required with autocommit=True
 
         cursor.execute("""
             INSERT INTO player_history (player_id, action_type, description, timestamp)
             VALUES (%s, 'hangover', '😵 Hangover! Resources halved.', NOW())
         """, (player_id,))
-        db.commit()
+        # db.commit()   # not required with autocommit=True
 
         flash("😵 Oh no! Hangover. Your resources were halved.", "danger")
     else:
@@ -215,7 +216,7 @@ def perform_collect():
             VALUES (%s, %s, 1)
             ON DUPLICATE KEY UPDATE quantity = quantity + 1
         """, (player_id, res_id))
-        db.commit()
+        # db.commit()   # not required with autocommit=True
 
         description = f'1x {res_name}'
 
@@ -232,7 +233,7 @@ def perform_collect():
             INSERT INTO player_history (player_id, action_type, description, timestamp)
             VALUES (%s, 'collect', %s, NOW())
         """, (player_id, description))
-        db.commit()
+        # db.commit()   # not required with autocommit=True
 
         flash(f"🍀 You collected 1x {res_name}!", "success")
 
@@ -241,7 +242,7 @@ def perform_collect():
         INSERT INTO collect_log (player_id, collect_num, timestamp)
         VALUES (%s, %s, NOW())
     """, (player_id, collect_count + 1))
-    db.commit()
+    # db.commit()   # not required with autocommit=True
 
     return redirect(url_for('dashboard'))
 
@@ -325,15 +326,173 @@ def perform_submit_task():
         VALUES (%s, 'task', %s, NOW())
     """, (player_id, description))
 
-    db.commit()
+    # db.commit()   # # not required with autocommit=True
 
     flash(f"✅ Task '{task['name']}' completed! You earned {task['credit_reward']} credits.", "success")
     return redirect(url_for('dashboard'))
 
-@app.route('/actions/trade')
+@app.route('/actions/trade', methods=['GET', 'POST'])
 @login_required
 def trade():
-    return render_template('actions/trade.html')
+    player_id = current_user.id
+    
+    if request.method == 'POST':
+        recipient_id = int(request.form['recipient_id'])
+        offered_resource_id = int(request.form['offered_resource_id'])
+        requested_resource_id = int(request.form['requested_resource_id'])
+        offered_quantity = int(request.form['offered_quantity'])
+        requested_quantity = int(request.form['requested_quantity'])
+
+        # Check initiator has enough offered resource
+        cursor.execute("""
+            SELECT quantity FROM player_resources
+            WHERE player_id = %s AND resource_id = %s
+        """, (player_id, offered_resource_id))
+        result = cursor.fetchone()
+        if not result or result['quantity'] < offered_quantity:
+            flash("You do not have enough of that resource to offer.", "danger")
+            return redirect(url_for('trade'))
+
+        # Insert pending trade
+        cursor.execute("""
+            INSERT INTO trades (
+                initiator_id, recipient_id,
+                offered_resource_id, offered_quantity,
+                requested_resource_id, requested_quantity
+            ) VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            player_id, recipient_id,
+            offered_resource_id, offered_quantity,
+            requested_resource_id, requested_quantity
+        ))
+        # db.commit()   # not required with autocommit=True
+        flash("Trade offer created.", "success")
+        return redirect(url_for('trade'))
+
+    # GET method — list other players and resources
+    cursor.execute("SELECT player_id, firstname, lastname FROM players WHERE player_id != %s", (player_id,))
+    other_players = cursor.fetchall()
+
+    cursor.execute("SELECT resource_id, name FROM resources")
+    resources = cursor.fetchall()
+
+    return render_template('actions/trade.html', players=other_players, resources=resources)
+
+@app.route('/actions/trade_offers')
+@login_required
+def trade_offers():
+    player_id = current_user.id
+    cursor.execute("""
+        SELECT t.*, i.firstname AS initiator_firstname, i.lastname AS initiator_lastname,
+               r1.name AS offered_resource, r2.name AS requested_resource
+        FROM trades t
+        JOIN players i ON t.initiator_id = i.player_id
+        JOIN resources r1 ON t.offered_resource_id = r1.resource_id
+        JOIN resources r2 ON t.requested_resource_id = r2.resource_id
+        WHERE t.recipient_id = %s AND t.status = 'pending'
+    """, (player_id,))
+    offers = cursor.fetchall()
+    return render_template('actions/trade_offers.html', offers=offers)
+
+@app.route('/actions/accept_trade/<int:trade_id>', methods=['POST'])
+@login_required
+def accept_trade(trade_id):
+    player_id = current_user.id
+    try:
+        db.start_transaction()      # *** Transaction started
+
+        # Lock the trade row
+        cursor.execute("""
+            SELECT * FROM trades WHERE trade_id = %s AND status = 'pending' FOR UPDATE
+        """, (trade_id,))
+        trade = cursor.fetchone()
+        if not trade or trade['recipient_id'] != player_id:
+            db.rollback()           # *** Transaction ends if
+            flash("Invalid or expired trade offer.", "danger")
+            return redirect(url_for('trade_offers'))
+
+        initiator_id = trade['initiator_id']
+        offered_resource_id = trade['offered_resource_id']
+        requested_resource_id = trade['requested_resource_id']
+        offered_quantity = trade['offered_quantity']
+        requested_quantity = trade['requested_quantity']
+
+        # Lock initiator and recipient resource rows
+        for pid, rid in [(initiator_id, offered_resource_id),
+                         (initiator_id, requested_resource_id),
+                         (player_id, offered_resource_id),
+                         (player_id, requested_resource_id)]:
+            cursor.execute("""
+                SELECT quantity FROM player_resources
+                WHERE player_id = %s AND resource_id = %s FOR UPDATE
+            """, (pid, rid))
+            cursor.fetchone()
+
+        # Check both players have enough resources
+        cursor.execute("""
+            SELECT quantity FROM player_resources
+            WHERE player_id = %s AND resource_id = %s
+        """, (initiator_id, offered_resource_id))
+        initiator_qty = cursor.fetchone()['quantity']
+
+        cursor.execute("""
+            SELECT quantity FROM player_resources
+            WHERE player_id = %s AND resource_id = %s
+        """, (player_id, requested_resource_id))
+        recipient_qty = cursor.fetchone()['quantity']
+
+        if initiator_qty < offered_quantity or recipient_qty < requested_quantity:
+            db.rollback()       # *** Transaction ends if
+            flash("One or both players lack required resources.", "danger")
+            return redirect(url_for('trade_offers'))
+
+        # Perform the exchange
+        cursor.execute("""
+            UPDATE player_resources SET quantity = quantity - %s
+            WHERE player_id = %s AND resource_id = %s
+        """, (offered_quantity, initiator_id, offered_resource_id))
+
+        cursor.execute("""
+            UPDATE player_resources SET quantity = quantity + %s
+            WHERE player_id = %s AND resource_id = %s
+        """, (offered_quantity, player_id, offered_resource_id))
+
+        cursor.execute("""
+            UPDATE player_resources SET quantity = quantity - %s
+            WHERE player_id = %s AND resource_id = %s
+        """, (requested_quantity, player_id, requested_resource_id))
+
+        cursor.execute("""
+            UPDATE player_resources SET quantity = quantity + %s
+            WHERE player_id = %s AND resource_id = %s
+        """, (requested_quantity, initiator_id, requested_resource_id))
+
+        # Mark trade as completed
+        cursor.execute("""
+            UPDATE trades SET status = 'completed' WHERE trade_id = %s
+        """, (trade_id,))
+
+        db.commit()     # *** Transaction ends
+        flash("Trade accepted and processed successfully.", "success")
+
+    except Exception as e:
+        db.rollback()   # *** Transaction ends except
+        flash("Trade failed: " + str(e), "danger")
+        
+    return redirect(url_for('trade_offers'))
+    
+@app.route('/actions/reject_trade/<int:trade_id>', methods=['POST'])
+@login_required
+def reject_trade(trade_id):
+    player_id = current_user.id
+    cursor.execute("""
+        UPDATE trades
+        SET status = 'cancelled'
+        WHERE trade_id = %s AND recipient_id = %s AND status = 'pending'
+    """, (trade_id, player_id))
+    # db.commit()   # not required with autocommit=True
+    flash("Trade rejected.", "info")
+    return redirect(url_for('trade_offers'))
 
 @app.route('/actions/leaderboard')
 @login_required
@@ -353,4 +512,3 @@ def leaderboard():
 # ---- Run ----
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
-    # app.run(debug=False, host='0.0.0.0', port=5000)

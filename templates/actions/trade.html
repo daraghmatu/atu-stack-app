@@ -2,6 +2,53 @@
 {% block title %}Trade Resources{% endblock %}
 {% block content %}
 <h2>🔁 Trade Resources</h2>
-<p>Offer one type of resource in exchange for another... (logic goes here)</p>
-<a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-3">Back to Dashboard</a>
+
+  <form method="post">
+    <div class="mt-4">
+      <label for="recipient_id">Select a player to trade with:</label>
+      <select name="recipient_id" required>
+        {% for player in players %}
+          <option value="{{ player.player_id }}">{{ player.firstname }} {{ player.lastname }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="mt-4">
+      <h4>Your offer:</h4>
+      <label for="offered_resource_id">Resource:</label>
+      <select name="offered_resource_id" required>
+        {% for r in resources %}
+          <option value="{{ r.resource_id }}">{{ r.name }}</option>
+        {% endfor %}
+      </select>
+      <label for="offered_quantity">Quantity:</label>
+      <input type="number" name="offered_quantity" min="1" required>
+    </div>
+
+    <div class="mt-4">
+      <h4>You want in return:</h4>
+      <label for="requested_resource_id">Resource:</label>
+      <select name="requested_resource_id" required>
+        {% for r in resources %}
+          <option value="{{ r.resource_id }}">{{ r.name }}</option>
+        {% endfor %}
+      </select>
+      <label for="requested_quantity">Quantity:</label>
+      <input type="number" name="requested_quantity" min="1" required>
+    </div>
+
+    <div class="mt-4">
+        <button type="submit">Send Trade Offer</button>
+    </div>
+  </form>
+
+  <hr>
+
+<div>
+    <a href="{{ url_for('trade_offers') }}" class="btn btn-primary mt-4">View Incoming Trade Offers</a>
+</div>
+
+<div>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-4">Back to Dashboard</a>
+</div>
 {% endblock %}

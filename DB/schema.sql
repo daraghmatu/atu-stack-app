@@ -78,6 +78,22 @@ CREATE TABLE collect_log (
     timestamp DATETIME
 );
 
+CREATE TABLE trades (
+    trade_id INT AUTO_INCREMENT PRIMARY KEY,
+    initiator_id INT NOT NULL,
+    recipient_id INT NOT NULL,
+    offered_resource_id INT NOT NULL,
+    offered_quantity INT NOT NULL,
+    requested_resource_id INT NOT NULL,
+    requested_quantity INT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status ENUM('pending', 'completed', 'cancelled') DEFAULT 'pending',
+    FOREIGN KEY (initiator_id) REFERENCES players(player_id),
+    FOREIGN KEY (recipient_id) REFERENCES players(player_id),
+    FOREIGN KEY (offered_resource_id) REFERENCES resources(resource_id),
+    FOREIGN KEY (requested_resource_id) REFERENCES resources(resource_id)
+);
+
 -- Trigger to assign starting resources
 DELIMITER //
 
