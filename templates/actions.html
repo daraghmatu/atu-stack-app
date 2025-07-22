@@ -1,15 +1,51 @@
 {% extends "base.html" %}
 {% block title %}Actions{% endblock %}
 {% block content %}
-<h2>🕹️ Choose Your Action</h2>
+<h2 class="mb-4">🕹️ Choose Your Action</h2>
 
-<ul>
-  <li><a href="{{ url_for('show_collect_page') }}">🍀 Collect Resource</a></li>
-  <li><a href="{{ url_for('submit_task_page') }}">📝 Submit Task</a></li>
-  <li><a href="{{ url_for('trade') }}">🤝 Trade Resources</a></li>
-  <li><a href="{{ url_for('leaderboard') }}">📊 View Leaderboard</a></li>
-</ul>
+<div class="row row-cols-1 row-cols-sm-1 row-cols-lg-4 g-5">
+  <div class="col">
+    <div class="card h-100 text-center">
+      <div class="card-body">
+        <h5 class="card-title">🍀 Collect Resource</h5>
+        <p class="card-text">Grab random resources to help complete tasks.</p>
+        <a href="{{ url_for('show_collect_page') }}" class="btn btn-success">Collect</a>
+      </div>
+    </div>
+  </div>
 
-<a href="{{ url_for('dashboard') }}">⬅️ Back to Dashboard</a>
+  <div class="col">
+    <div class="card h-100 text-center">
+      <div class="card-body">
+        <h5 class="card-title">📝 Submit Task</h5>
+        <p class="card-text">Swap your resources for credits by completing tasks.</p>
+        <a href="{{ url_for('submit_task_page') }}" class="btn btn-primary">Submit</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="card h-100 text-center">
+      <div class="card-body">
+        <h5 class="card-title">🤝 Trade Resources</h5>
+        <p class="card-text">Exchange your resources with others in the marketplace.</p>
+        <a href="{{ url_for('trade') }}" class="btn btn-warning">Trade</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="card h-100 text-center">
+      <div class="card-body">
+        <h5 class="card-title">📊 View Leaderboard</h5>
+        <p class="card-text">See how you rank against other players.</p>
+        <a href="{{ url_for('leaderboard') }}" class="btn btn-info">Leaderboard</a>
+      </div>
+    </div>
+  </div>
+
+<div class="mt-3">
+  <a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-3">⬅️ Back to Dashboard</a>
+</div>
 
 {% endblock %}
