@@ -28,13 +28,22 @@ db = mysql.connector.connect(
 )
 cursor = db.cursor(dictionary=True)
 
-# ---- User Class ----
+def get_player_resources(player_id):
+    cursor.execute("""
+        SELECT r.name, pr.quantity
+        FROM player_resources pr
+        JOIN resources r ON pr.resource_id = r.resource_id
+        WHERE pr.player_id = %s
+    """, (player_id,))
+    return cursor.fetchall()
+
+# User Class
 class User(UserMixin):
     def __init__(self, id, firstname):
         self.id = id
         self.firstname = firstname
 
-# ---- User Loader ----
+# User Loader
 @login_manager.user_loader
 def load_user(user_id):
     cursor.execute("SELECT * FROM players WHERE player_id = %s", (user_id,))
@@ -78,21 +87,16 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    player_id = current_user.id
     # Fetch player resources
-    cursor.execute("""
-        SELECT r.name, pr.quantity
-        FROM player_resources pr
-        JOIN resources r ON pr.resource_id = r.resource_id
-        WHERE pr.player_id = %s
-    """, (current_user.id,))
-    resources = cursor.fetchall()
+    resources = get_player_resources(player_id)
 
     # Fetch player credits
     cursor.execute("""
         SELECT credits
         FROM players
         WHERE player_id = %s
-    """, (current_user.id,))
+    """, (player_id,))
     result = cursor.fetchone()
     credits = result['credits']
 
@@ -103,7 +107,7 @@ def dashboard():
         WHERE player_id = %s
         ORDER BY timestamp DESC
         LIMIT 10
-    """, (current_user.id,))
+    """, (player_id,))
     history = cursor.fetchall()
 
     # Player Rank
@@ -113,7 +117,7 @@ def dashboard():
         WHERE credits > (
             SELECT credits FROM players WHERE player_id = %s
         )
-    """, (current_user.id,))
+    """, (player_id,))
     result = cursor.fetchone()
     rank = result['p_rank']
     
@@ -376,7 +380,9 @@ def trade():
     cursor.execute("SELECT resource_id, name FROM resources")
     resources = cursor.fetchall()
 
-    return render_template('actions/trade.html', players=other_players, resources=resources)
+    player_resources = get_player_resources(player_id)
+
+    return render_template('actions/trade.html', players=other_players, resources=resources, player_resources=player_resources)
 
 @app.route('/actions/trade_offers')
 @login_required
@@ -392,7 +398,10 @@ def trade_offers():
         WHERE t.recipient_id = %s AND t.status = 'pending'
     """, (player_id,))
     offers = cursor.fetchall()
-    return render_template('actions/trade_offers.html', offers=offers)
+
+    player_resources = get_player_resources(player_id)
+
+    return render_template('actions/trade_offers.html', offers=offers, player_resources=player_resources)
 
 @app.route('/actions/accept_trade/<int:trade_id>', methods=['POST'])
 @login_required

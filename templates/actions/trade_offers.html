@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Trade Offers{% endblock %}
 {% block content %}
-<h2>Trade Offers</h2>
+<h2>🤝 Trade Offers</h2>
 
   {% if offers %}
     <ul>
@@ -27,6 +27,16 @@
   {% endif %}
 
   <hr>
+
+  <h4 class="mt-4">📦 Current Resources</h4>
+  <ul class="list-group">
+      {% for r in player_resources %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+              {{ r.name | capitalize }}
+              <span class="badge bg-primary rounded-pill">{{ r.quantity }}</span>
+          </li>
+      {% endfor %}
+  </ul>
   
   <div>
     <a href="{{ url_for('trade') }}" class="btn btn-secondary mt-4">Back to Trading Page</a>

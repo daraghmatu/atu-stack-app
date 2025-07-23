@@ -3,10 +3,23 @@
 {% block content %}
 <h2>🔁 Trade Resources</h2>
 
+  <h4 class="mt-4">📦 Current Resources</h4>
+  <ul class="list-group">
+      {% for r in player_resources %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+              {{ r.name | capitalize }}
+              <span class="badge bg-primary rounded-pill">{{ r.quantity }}</span>
+          </li>
+      {% endfor %}
+  </ul>
+
+  <hr>
+
   <form method="post">
     <div class="mt-4">
       <label for="recipient_id">Select a player to trade with:</label>
       <select name="recipient_id" required>
+        <option value="" disabled selected>Select Player</option>
         {% for player in players %}
           <option value="{{ player.player_id }}">{{ player.firstname }} {{ player.lastname }}</option>
         {% endfor %}
