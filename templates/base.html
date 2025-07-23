@@ -13,6 +13,11 @@
                 <span class="text-white me-3">Welcome, {{ current_user.firstname }}</span>
                 <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light">Logout</a>
             </div>
+            {% if current_user.is_admin %}
+                <div class="ms-auto">
+                    <a href="{{ url_for('admin_panel') }}" class="btn btn-sm btn-outline-light">Admin Panel</a>
+                </div>
+            {% endif %}
         {% endif %}
     </nav>
     <div class="container mt-4">

@@ -1,23 +1,33 @@
 {% extends "base.html" %}
 {% block title %}Admin Panel{% endblock %}
 {% block content %}
-<h2>Admin Panel</h2>
+  <h2>Admin Panel</h2>
+  <form method="POST">
+    <label>
+      <input type="checkbox" name="game_paused" {% if settings.game_paused %}checked{% endif %}>
+      Pause Entire Game
+    </label><br>
 
-<form method="post">
-    <div class="mb-3">
-        <label>Set Isolation Level:</label>
-        <select name="isolation_level" class="form-select">
-            <option value="READ UNCOMMITTED">READ UNCOMMITTED</option>
-            <option value="READ COMMITTED">READ COMMITTED</option>
-            <option value="REPEATABLE READ">REPEATABLE READ</option>
-            <option value="SERIALIZABLE">SERIALIZABLE</option>
-        </select>
-    </div>
-    <button type="submit" class="btn btn-danger">Apply</button>
-</form>
+    <label>
+      <input type="checkbox" name="trading_paused" {% if settings.trading_paused %}checked{% endif %}>
+      Pause Trading
+    </label><br>
 
-<form method="post" class="mt-4">
-    <button name="toggle_round" value="start" class="btn btn-primary">Start Round</button>
-    <button name="toggle_round" value="stop" class="btn btn-secondary">Stop Round</button>
-</form>
+    <label>
+      <input type="checkbox" name="collection_paused" {% if settings.collection_paused %}checked{% endif %}>
+      Pause Collection
+    </label><br>
+
+    <label>
+      <input type="checkbox" name="tasks_paused" {% if settings.tasks_paused %}checked{% endif %}>
+      Pause Tasks
+    </label><br>
+
+    <label>
+      <input type="checkbox" name="leaderboard_paused" {% if settings.leaderboard_paused %}checked{% endif %}>
+      Pause Leaderboard
+    </label><br><br>
+
+    <button type="submit">Update Settings</button>
+  </form>
 {% endblock %}

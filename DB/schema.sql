@@ -16,6 +16,7 @@ CREATE TABLE players (
     username VARCHAR(50) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     credits INT DEFAULT 0,
+    is_admin BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT current_timestamp
 );
 
@@ -56,11 +57,14 @@ insert into tasks (name, pizza_cost, coffee_cost, sleep_cost, study_cost, credit
 
 CREATE TABLE admin_settings (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    game_start DATETIME,
-    game_end DATETIME
+    game_paused BOOLEAN DEFAULT FALSE,
+    collection_paused BOOLEAN DEFAULT FALSE,
+    tasks_paused BOOLEAN DEFAULT FALSE,
+    trading_paused BOOLEAN DEFAULT FALSE,
+    leaderboard_paused BOOLEAN DEFAULT FALSE
 );
 
-INSERT INTO admin_settings (game_start, game_end) VALUES (NOW(), DATE_ADD(NOW(), INTERVAL 30 MINUTE));
+INSERT INTO admin_settings () VALUES ();  -- insert a row with defaults
 
 CREATE TABLE player_history (
     history_id INT AUTO_INCREMENT PRIMARY KEY,

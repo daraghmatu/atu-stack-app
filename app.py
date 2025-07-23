@@ -18,6 +18,35 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+# Flask decorator
+from functools import wraps
+def check_game_status(action_name=None):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if current_user.is_authenticated and getattr(current_user, "is_admin", False):
+                return f(*args, **kwargs)
+
+            cursor = db.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM admin_settings LIMIT 1")
+            settings = cursor.fetchone()
+
+            if settings is None:
+                flash("Game configuration not found.", "danger")
+                return redirect(url_for("dashboard"))
+
+            if settings['game_paused']:
+                flash("The game is currently paused.", "warning")
+                return redirect(url_for("dashboard"))
+
+            if action_name and settings.get(f"{action_name}_paused", True):
+                flash(f"{action_name.capitalize()} is currently disabled.", "warning")
+                return redirect(url_for("dashboard"))
+
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+
 # MySQL connection
 db = mysql.connector.connect(
     host=os.getenv('MYSQL_HOST'),
@@ -39,9 +68,10 @@ def get_player_resources(player_id):
 
 # User Class
 class User(UserMixin):
-    def __init__(self, id, firstname):
+    def __init__(self, id, firstname, is_admin=False):
         self.id = id
         self.firstname = firstname
+        self.is_admin = is_admin
 
 # User Loader
 @login_manager.user_loader
@@ -49,7 +79,7 @@ def load_user(user_id):
     cursor.execute("SELECT * FROM players WHERE player_id = %s", (user_id,))
     user = cursor.fetchone()
     if user:
-        return User(id=user['player_id'], firstname=user['firstname'])
+        return User(id=user['player_id'], firstname=user['firstname'], is_admin=user['is_admin'])
     return None
 
 # ---- Routes ----
@@ -125,28 +155,47 @@ def dashboard():
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
-def admin():
-    # ***************** In production you'd check for admin role here
+def admin_panel():
+    if not current_user.is_authenticated or not getattr(current_user, 'is_admin', False):
+        flash("Access denied.")
+        return redirect(url_for('dashboard'))
+
     if request.method == 'POST':
-        if 'isolation_level' in request.form:
-            level = request.form['isolation_level']
-            cursor.execute(f"SET SESSION TRANSACTION ISOLATION LEVEL {level}")
-            db.commit()
-            flash(f"Isolation level set to {level}")
-        elif request.form.get('toggle_round') == 'start':
-            flash("Round started.")
-        elif request.form.get('toggle_round') == 'stop':
-            flash("Round stopped.")
-    return render_template('admin.html')
+        updates = {
+            'game_paused': bool(request.form.get('game_paused')),
+            'collection_paused': bool(request.form.get('collection_paused')),
+            'tasks_paused': bool(request.form.get('tasks_paused')),
+            'trading_paused': bool(request.form.get('trading_paused')),
+            'leaderboard_paused': bool(request.form.get('leaderboard_paused')),
+        }
+        update_query = """
+            UPDATE admin_settings SET 
+                game_paused = %s,
+                collection_paused = %s,
+                tasks_paused = %s,
+                trading_paused = %s,
+                leaderboard_paused = %s
+            WHERE id = 1
+        """
+        cursor.execute(update_query, tuple(updates.values()))
+        db.commit()
+        flash("Settings updated.")
+        return redirect(url_for('admin_panel'))
+
+    cursor.execute("SELECT * FROM admin_settings WHERE id = 1")
+    settings = cursor.fetchone()
+    return render_template('admin.html', settings=settings)
 
 @app.route('/actions')
 @login_required
+@check_game_status()
 def actions():
     return render_template('actions.html')
 
 # Action routes
 @app.route('/actions/collect', methods=['GET'])
 @login_required
+@check_game_status('collection')
 def show_collect_page():
     player_id = current_user.id
 
@@ -252,6 +301,7 @@ def perform_collect():
 
 @app.route('/actions/tasks', methods=['GET'])
 @login_required
+@check_game_status('tasks')
 def submit_task_page():
     player_id = current_user.id
 
@@ -337,6 +387,7 @@ def perform_submit_task():
 
 @app.route('/actions/trade', methods=['GET', 'POST'])
 @login_required
+@check_game_status('trading')
 def trade():
     player_id = current_user.id
     
@@ -505,6 +556,7 @@ def reject_trade(trade_id):
 
 @app.route('/actions/leaderboard')
 @login_required
+@check_game_status('leaderboard')
 def leaderboard():
     cursor.execute(""" 
         SELECT 
