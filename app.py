@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, g
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import mysql.connector
 import bcrypt
@@ -18,6 +18,25 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+# MySQL connection per request
+@app.before_request
+def before_request():
+    g.db = mysql.connector.connect(
+        host=os.getenv('MYSQL_HOST'),
+        user=os.getenv('MYSQL_USER'),
+        password=os.getenv('MYSQL_PWD'),
+        database=os.getenv('MYSQL_SCHEMA'),
+        autocommit=True     # mysql.connector py library will open connections with autocommit OFF by default
+    )
+
+@app.teardown_request
+def teardown_request(exception):
+    if hasattr(g, 'db'):
+        g.db.close()
+
+def get_cursor():
+    return g.db.cursor(dictionary=True)
+
 # Flask decorator
 from functools import wraps
 def check_game_status(action_name=None):
@@ -27,9 +46,12 @@ def check_game_status(action_name=None):
             if current_user.is_authenticated and getattr(current_user, "is_admin", False):
                 return f(*args, **kwargs)
 
-            cursor = db.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM admin_settings LIMIT 1")
-            settings = cursor.fetchone()
+            cursor = get_cursor()
+            try:
+                cursor.execute("SELECT * FROM admin_settings LIMIT 1")
+                settings = cursor.fetchone()
+            finally:
+                cursor.close()
 
             if settings is None:
                 flash("Game configuration not found.", "danger")
@@ -47,24 +69,18 @@ def check_game_status(action_name=None):
         return wrapped
     return decorator
 
-# MySQL connection
-db = mysql.connector.connect(
-    host=os.getenv('MYSQL_HOST'),
-    user=os.getenv('MYSQL_USER'),
-    password=os.getenv('MYSQL_PWD'),
-    database=os.getenv('MYSQL_SCHEMA'),
-    autocommit=True     # mysql.connector py library will open connections with autocommit OFF by default
-)
-cursor = db.cursor(dictionary=True)
-
 def get_player_resources(player_id):
-    cursor.execute("""
-        SELECT r.name, pr.quantity
-        FROM player_resources pr
-        JOIN resources r ON pr.resource_id = r.resource_id
-        WHERE pr.player_id = %s
-    """, (player_id,))
-    return cursor.fetchall()
+    cursor = get_cursor()
+    try:
+        cursor.execute("""
+            SELECT r.name, pr.quantity
+            FROM player_resources pr
+            JOIN resources r ON pr.resource_id = r.resource_id
+            WHERE pr.player_id = %s
+        """, (player_id,))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
 
 # User Class
 class User(UserMixin):
@@ -76,11 +92,15 @@ class User(UserMixin):
 # User Loader
 @login_manager.user_loader
 def load_user(user_id):
-    cursor.execute("SELECT * FROM players WHERE player_id = %s", (user_id,))
-    user = cursor.fetchone()
-    if user:
-        return User(id=user['player_id'], firstname=user['firstname'], is_admin=user['is_admin'])
-    return None
+    cursor = get_cursor()
+    try:
+        cursor.execute("SELECT * FROM players WHERE player_id = %s", (user_id,))
+        user = cursor.fetchone()
+        if user:
+            return User(id=user['player_id'], firstname=user['firstname'], is_admin=user['is_admin'])
+        return None
+    finally:
+        cursor.close()
 
 # ---- Routes ----
 
@@ -94,10 +114,14 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        
-        cursor.execute("SELECT * FROM players WHERE username = %s", (username,))
-        user = cursor.fetchone()
 
+        cursor = get_cursor()
+        try:
+            cursor.execute("SELECT * FROM players WHERE username = %s", (username,))
+            user = cursor.fetchone()
+        finally:
+            cursor.close()
+        
         if user and bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
             user_obj = User(id=user['player_id'], firstname=user['firstname'])
             login_user(user_obj)
@@ -121,37 +145,43 @@ def dashboard():
     # Fetch player resources
     resources = get_player_resources(player_id)
 
-    # Fetch player credits
-    cursor.execute("""
-        SELECT credits
-        FROM players
-        WHERE player_id = %s
-    """, (player_id,))
-    result = cursor.fetchone()
-    credits = result['credits']
+    cursor = get_cursor()
+    try:
+        
+        # Fetch player credits
+        cursor.execute("""
+            SELECT credits
+            FROM players
+            WHERE player_id = %s
+        """, (player_id,))
+        result = cursor.fetchone()
+        credits = result['credits']
 
-    # Fetch player history
-    cursor.execute("""
-        SELECT action_type, description, credits_earned, timestamp
-        FROM player_history
-        WHERE player_id = %s
-        ORDER BY timestamp DESC
-        LIMIT 10
-    """, (player_id,))
-    history = cursor.fetchall()
+        # Fetch player history
+        cursor.execute("""
+            SELECT action_type, description, credits_earned, timestamp
+            FROM player_history
+            WHERE player_id = %s
+            ORDER BY timestamp DESC
+            LIMIT 10
+        """, (player_id,))
+        history = cursor.fetchall()
 
-    # Player Rank
-    cursor.execute("""
-        SELECT COUNT(*) + 1 as p_rank
-        FROM players
-        WHERE credits > (
-            SELECT credits FROM players WHERE player_id = %s
-        )
-    """, (player_id,))
-    result = cursor.fetchone()
-    rank = result['p_rank']
+        # Player Rank
+        cursor.execute("""
+            SELECT COUNT(*) + 1 as p_rank
+            FROM players
+            WHERE credits > (
+                SELECT credits FROM players WHERE player_id = %s
+            )
+        """, (player_id,))
+        result = cursor.fetchone()
+        rank = result['p_rank']
     
-    return render_template('dashboard.html', resources=resources, credits=credits, history=history, rank=rank)
+        return render_template('dashboard.html', resources=resources, credits=credits, history=history, rank=rank)
+    
+    finally:
+        cursor.close()
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
@@ -159,32 +189,36 @@ def admin_panel():
     if not current_user.is_authenticated or not getattr(current_user, 'is_admin', False):
         flash("Access denied.")
         return redirect(url_for('dashboard'))
+    
+    cursor = get_cursor()
+    try:    
+        if request.method == 'POST':
+            updates = {
+                'game_paused': bool(request.form.get('game_paused')),
+                'collection_paused': bool(request.form.get('collection_paused')),
+                'tasks_paused': bool(request.form.get('tasks_paused')),
+                'trading_paused': bool(request.form.get('trading_paused')),
+                'leaderboard_paused': bool(request.form.get('leaderboard_paused')),
+            }
+            update_query = """
+                UPDATE admin_settings SET 
+                    game_paused = %s,
+                    collection_paused = %s,
+                    tasks_paused = %s,
+                    trading_paused = %s,
+                    leaderboard_paused = %s
+                WHERE id = 1
+            """
+            cursor.execute(update_query, tuple(updates.values()))
+            g.db.commit()
+            flash("Settings updated.")
+            return redirect(url_for('admin_panel'))
 
-    if request.method == 'POST':
-        updates = {
-            'game_paused': bool(request.form.get('game_paused')),
-            'collection_paused': bool(request.form.get('collection_paused')),
-            'tasks_paused': bool(request.form.get('tasks_paused')),
-            'trading_paused': bool(request.form.get('trading_paused')),
-            'leaderboard_paused': bool(request.form.get('leaderboard_paused')),
-        }
-        update_query = """
-            UPDATE admin_settings SET 
-                game_paused = %s,
-                collection_paused = %s,
-                tasks_paused = %s,
-                trading_paused = %s,
-                leaderboard_paused = %s
-            WHERE id = 1
-        """
-        cursor.execute(update_query, tuple(updates.values()))
-        db.commit()
-        flash("Settings updated.")
-        return redirect(url_for('admin_panel'))
-
-    cursor.execute("SELECT * FROM admin_settings WHERE id = 1")
-    settings = cursor.fetchone()
-    return render_template('admin.html', settings=settings)
+        cursor.execute("SELECT * FROM admin_settings WHERE id = 1")
+        settings = cursor.fetchone()
+        return render_template('admin.html', settings=settings)
+    finally:
+        cursor.close()
 
 @app.route('/actions')
 @login_required
@@ -198,14 +232,17 @@ def actions():
 @check_game_status('collection')
 def show_collect_page():
     player_id = current_user.id
-
-    # Get last collect time + num collects
-    cursor.execute("""
-        SELECT MAX(timestamp) as tm, MAX(collect_num) as cn
-        FROM collect_log
-        WHERE player_id = %s
-    """, (player_id,))
-    last_collect = cursor.fetchone()
+    cursor = get_cursor()
+    try:
+        # Get last collect time + num collects
+        cursor.execute("""
+            SELECT MAX(timestamp) as tm, MAX(collect_num) as cn
+            FROM collect_log
+            WHERE player_id = %s
+        """, (player_id,))
+        last_collect = cursor.fetchone()
+    finally:
+        cursor.close()
 
     last_time = last_collect['tm']
     collect_count = last_collect['cn'] or 0
@@ -225,241 +262,259 @@ def show_collect_page():
 @login_required
 def perform_collect():
     player_id = current_user.id
-
-    # Get last collect time + num collects
-    cursor.execute("""
-        SELECT MAX(collect_num) as cn
-        FROM collect_log
-        WHERE player_id = %s
-    """, (player_id,))
-    last_collect = cursor.fetchone()
-    collect_count = last_collect['cn'] or 0
-
-    # Determine hangover chance
-    hangover_chance = min(max(collect_count * 5, 0), 25)
-    got_hangover = random.randint(1, 100) <= hangover_chance
-
-    if got_hangover:
-		# Halve player resources
+    cursor = get_cursor()
+    try:
+        # Get last collect time + num collects
         cursor.execute("""
-            UPDATE player_resources
-            SET quantity = FLOOR(quantity / 2)
+            SELECT MAX(collect_num) as cn
+            FROM collect_log
             WHERE player_id = %s
         """, (player_id,))
-        # db.commit()   # not required with autocommit=True
+        last_collect = cursor.fetchone()
+        collect_count = last_collect['cn'] or 0
 
+        # Determine hangover chance
+        hangover_chance = min(max(collect_count * 5, 0), 25)
+        got_hangover = random.randint(1, 100) <= hangover_chance
+
+        if got_hangover:
+            # Halve player resources
+            cursor.execute("""
+                UPDATE player_resources
+                SET quantity = FLOOR(quantity / 2)
+                WHERE player_id = %s
+            """, (player_id,))
+            # db.commit()   # not required with autocommit=True
+
+            cursor.execute("""
+                INSERT INTO player_history (player_id, action_type, description, timestamp)
+                VALUES (%s, 'hangover', '😵 Hangover! Resources halved.', NOW())
+            """, (player_id,))
+            # db.commit()   # not required with autocommit=True
+
+            flash("😵 Oh no! Hangover. Your resources were halved.", "danger")
+        else:
+            # Pick random resoource
+            cursor.execute("SELECT resource_id, name FROM resources")
+            resources = cursor.fetchall()
+            chosen = random.choice(resources)
+            res_id = chosen['resource_id']
+            res_name = chosen['name']
+
+            # Plus one to resource
+            cursor.execute("""
+                INSERT INTO player_resources (player_id, resource_id, quantity)
+                VALUES (%s, %s, 1)
+                ON DUPLICATE KEY UPDATE quantity = quantity + 1
+            """, (player_id, res_id))
+            # db.commit()   # not required with autocommit=True
+
+            description = f'1x {res_name}'
+
+            if res_name == 'pizza':
+                description = description + ' 🍕'
+            elif res_name == 'coffee':
+                description = description + ' ☕'
+            elif res_name == 'sleep':
+                description = description + ' 😴'
+            elif res_name == 'study':
+                description = description + ' 📖'
+
+            cursor.execute("""
+                INSERT INTO player_history (player_id, action_type, description, timestamp)
+                VALUES (%s, 'collect', %s, NOW())
+            """, (player_id, description))
+            # db.commit()   # not required with autocommit=True
+
+            flash(f"🍀 You collected 1x {res_name}!", "success")
+
+        # Log collect with incremented collect number
         cursor.execute("""
-            INSERT INTO player_history (player_id, action_type, description, timestamp)
-            VALUES (%s, 'hangover', '😵 Hangover! Resources halved.', NOW())
-        """, (player_id,))
+            INSERT INTO collect_log (player_id, collect_num, timestamp)
+            VALUES (%s, %s, NOW())
+        """, (player_id, collect_count + 1))
         # db.commit()   # not required with autocommit=True
+    
+        return redirect(url_for('dashboard'))
 
-        flash("😵 Oh no! Hangover. Your resources were halved.", "danger")
-    else:
-		# Pick random resoource
-        cursor.execute("SELECT resource_id, name FROM resources")
-        resources = cursor.fetchall()
-        chosen = random.choice(resources)
-        res_id = chosen['resource_id']
-        res_name = chosen['name']
-
-		# Plus one to resource
-        cursor.execute("""
-            INSERT INTO player_resources (player_id, resource_id, quantity)
-            VALUES (%s, %s, 1)
-            ON DUPLICATE KEY UPDATE quantity = quantity + 1
-        """, (player_id, res_id))
-        # db.commit()   # not required with autocommit=True
-
-        description = f'1x {res_name}'
-
-        if res_name == 'pizza':
-            description = description + ' 🍕'
-        elif res_name == 'coffee':
-            description = description + ' ☕'
-        elif res_name == 'sleep':
-            description = description + ' 😴'
-        elif res_name == 'study':
-            description = description + ' 📖'
-
-        cursor.execute("""
-            INSERT INTO player_history (player_id, action_type, description, timestamp)
-            VALUES (%s, 'collect', %s, NOW())
-        """, (player_id, description))
-        # db.commit()   # not required with autocommit=True
-
-        flash(f"🍀 You collected 1x {res_name}!", "success")
-
-    # Log collect with incremented collect number
-    cursor.execute("""
-        INSERT INTO collect_log (player_id, collect_num, timestamp)
-        VALUES (%s, %s, NOW())
-    """, (player_id, collect_count + 1))
-    # db.commit()   # not required with autocommit=True
-
-    return redirect(url_for('dashboard'))
+    finally:
+        cursor.close()
 
 @app.route('/actions/tasks', methods=['GET'])
 @login_required
 @check_game_status('tasks')
 def submit_task_page():
     player_id = current_user.id
+    cursor = get_cursor()
+    try:
+        # Get all tasks
+        cursor.execute("SELECT * FROM tasks")
+        tasks = cursor.fetchall()
 
-    # Get all tasks
-    cursor.execute("SELECT * FROM tasks")
-    tasks = cursor.fetchall()
+        # Get player's current resources
+        cursor.execute("""
+            SELECT r.name, pr.quantity
+            FROM resources r
+            LEFT JOIN player_resources pr 
+            ON r.resource_id = pr.resource_id AND pr.player_id = %s
+        """, (player_id,))
+        resources = {row['name']: row['quantity'] or 0 for row in cursor.fetchall()}
 
-    # Get player's current resources
-    cursor.execute("""
-        SELECT r.name, pr.quantity
-        FROM resources r
-        LEFT JOIN player_resources pr 
-        ON r.resource_id = pr.resource_id AND pr.player_id = %s
-    """, (player_id,))
-    resources = {row['name']: row['quantity'] or 0 for row in cursor.fetchall()}
-
-    return render_template('actions/tasks.html', tasks=tasks, resources=resources)
+        return render_template('actions/tasks.html', tasks=tasks, resources=resources)
+    finally:
+        cursor.close()
 
 @app.route('/actions/tasks', methods=['POST'])
 @login_required
 def perform_submit_task():
     player_id = current_user.id
     task_id = int(request.form['task_id'])
+    cursor = get_cursor()
+    try:
+        # Get task costs and reward
+        cursor.execute("SELECT * FROM tasks WHERE task_id = %s", (task_id,))
+        task = cursor.fetchone()
 
-    # Get task costs and reward
-    cursor.execute("SELECT * FROM tasks WHERE task_id = %s", (task_id,))
-    task = cursor.fetchone()
-
-    if not task:
-        flash("❌ Invalid task selected.", "danger")
-        return redirect(url_for('submit_task_page'))
-
-    # Get player resources as a dictionary
-    cursor.execute("""
-        SELECT r.name, pr.quantity
-        FROM resources r
-        LEFT JOIN player_resources pr
-        ON r.resource_id = pr.resource_id AND pr.player_id = %s
-    """, (player_id,))
-    player_resources = {row['name']: row['quantity'] or 0 for row in cursor.fetchall()}
-
-    # Check if player has enough of each required resource
-    requirements = {
-        'pizza': task['pizza_cost'],
-        'coffee': task['coffee_cost'],
-        'sleep': task['sleep_cost'],
-        'study': task['study_cost']
-    }
-
-    for res_name, cost in requirements.items():
-        if player_resources.get(res_name, 0) < cost:
-            flash(f"❌ Not enough {res_name}. You need {cost}.", "danger")
+        if not task:
+            flash("❌ Invalid task selected.", "danger")
             return redirect(url_for('submit_task_page'))
 
-    # Deduct resources
-    for res_name, cost in requirements.items():
+        # Get player resources as a dictionary
         cursor.execute("""
-            UPDATE player_resources
-            SET quantity = quantity - %s
-            WHERE player_id = %s AND resource_id = (
-                SELECT resource_id FROM resources WHERE name = %s
-            )
-        """, (cost, player_id, res_name))
+            SELECT r.name, pr.quantity
+            FROM resources r
+            LEFT JOIN player_resources pr
+            ON r.resource_id = pr.resource_id AND pr.player_id = %s
+        """, (player_id,))
+        player_resources = {row['name']: row['quantity'] or 0 for row in cursor.fetchall()}
 
-    # Add credits
-    cursor.execute("""
-        UPDATE players
-        SET credits = credits + %s
-        WHERE player_id = %s
-    """, (task['credit_reward'], player_id))
+        # Check if player has enough of each required resource
+        requirements = {
+            'pizza': task['pizza_cost'],
+            'coffee': task['coffee_cost'],
+            'sleep': task['sleep_cost'],
+            'study': task['study_cost']
+        }
 
-    # Log to history
-    description = f"{task['name']} for {task['credit_reward']} credits 🎓"
-    cursor.execute("""
-        INSERT INTO player_history (player_id, action_type, description, timestamp)
-        VALUES (%s, 'task', %s, NOW())
-    """, (player_id, description))
+        for res_name, cost in requirements.items():
+            if player_resources.get(res_name, 0) < cost:
+                flash(f"❌ Not enough {res_name}. You need {cost}.", "danger")
+                return redirect(url_for('submit_task_page'))
 
-    # db.commit()   # # not required with autocommit=True
+        # Deduct resources
+        for res_name, cost in requirements.items():
+            cursor.execute("""
+                UPDATE player_resources
+                SET quantity = quantity - %s
+                WHERE player_id = %s AND resource_id = (
+                    SELECT resource_id FROM resources WHERE name = %s
+                )
+            """, (cost, player_id, res_name))
 
-    flash(f"✅ Task '{task['name']}' completed! You earned {task['credit_reward']} credits.", "success")
-    return redirect(url_for('dashboard'))
+        # Add credits
+        cursor.execute("""
+            UPDATE players
+            SET credits = credits + %s
+            WHERE player_id = %s
+        """, (task['credit_reward'], player_id))
+
+        # Log to history
+        description = f"{task['name']} for {task['credit_reward']} credits 🎓"
+        cursor.execute("""
+            INSERT INTO player_history (player_id, action_type, description, timestamp)
+            VALUES (%s, 'task', %s, NOW())
+        """, (player_id, description))
+
+        # db.commit()   # # not required with autocommit=True
+
+        flash(f"✅ Task '{task['name']}' completed! You earned {task['credit_reward']} credits.", "success")
+        return redirect(url_for('dashboard'))
+    finally:
+        cursor.close()
 
 @app.route('/actions/trade', methods=['GET', 'POST'])
 @login_required
 @check_game_status('trading')
 def trade():
     player_id = current_user.id
-    
-    if request.method == 'POST':
-        recipient_id = int(request.form['recipient_id'])
-        offered_resource_id = int(request.form['offered_resource_id'])
-        requested_resource_id = int(request.form['requested_resource_id'])
-        offered_quantity = int(request.form['offered_quantity'])
-        requested_quantity = int(request.form['requested_quantity'])
+    cursor = get_cursor()
+    try:
+        if request.method == 'POST':
+            recipient_id = int(request.form['recipient_id'])
+            offered_resource_id = int(request.form['offered_resource_id'])
+            requested_resource_id = int(request.form['requested_resource_id'])
+            offered_quantity = int(request.form['offered_quantity'])
+            requested_quantity = int(request.form['requested_quantity'])
 
-        # Check initiator has enough offered resource
-        cursor.execute("""
-            SELECT quantity FROM player_resources
-            WHERE player_id = %s AND resource_id = %s
-        """, (player_id, offered_resource_id))
-        result = cursor.fetchone()
-        if not result or result['quantity'] < offered_quantity:
-            flash("You do not have enough of that resource to offer.", "danger")
-            return redirect(url_for('trade'))
+            # Check initiator has enough offered resource
+            cursor.execute("""
+                SELECT quantity FROM player_resources
+                WHERE player_id = %s AND resource_id = %s
+            """, (player_id, offered_resource_id))
+            result = cursor.fetchone()
+            if not result or result['quantity'] < offered_quantity:
+                flash("You do not have enough of that resource to offer.", "danger")
+                return redirect(url_for('trade'))
 
-        # Insert pending trade
-        cursor.execute("""
-            INSERT INTO trades (
-                initiator_id, recipient_id,
+            # Insert pending trade
+            cursor.execute("""
+                INSERT INTO trades (
+                    initiator_id, recipient_id,
+                    offered_resource_id, offered_quantity,
+                    requested_resource_id, requested_quantity
+                ) VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                player_id, recipient_id,
                 offered_resource_id, offered_quantity,
                 requested_resource_id, requested_quantity
-            ) VALUES (%s, %s, %s, %s, %s, %s)
-        """, (
-            player_id, recipient_id,
-            offered_resource_id, offered_quantity,
-            requested_resource_id, requested_quantity
-        ))
-        # db.commit()   # not required with autocommit=True
-        flash("Trade offer created.", "success")
-        return redirect(url_for('trade'))
+            ))
+            # db.commit()   # not required with autocommit=True
+            flash("Trade offer created.", "success")
+            return redirect(url_for('trade'))
 
-    # GET method — list other players and resources
-    cursor.execute("SELECT player_id, firstname, lastname FROM players WHERE player_id != %s", (player_id,))
-    other_players = cursor.fetchall()
+        # GET method — list other players and resources
+        cursor.execute("SELECT player_id, firstname, lastname FROM players WHERE player_id != %s", (player_id,))
+        other_players = cursor.fetchall()
 
-    cursor.execute("SELECT resource_id, name FROM resources")
-    resources = cursor.fetchall()
+        cursor.execute("SELECT resource_id, name FROM resources")
+        resources = cursor.fetchall()
 
-    player_resources = get_player_resources(player_id)
+        player_resources = get_player_resources(player_id)
 
-    return render_template('actions/trade.html', players=other_players, resources=resources, player_resources=player_resources)
+        return render_template('actions/trade.html', players=other_players, resources=resources, player_resources=player_resources)
+    finally:
+        cursor.close()
 
 @app.route('/actions/trade_offers')
 @login_required
 def trade_offers():
     player_id = current_user.id
-    cursor.execute("""
-        SELECT t.*, i.firstname AS initiator_firstname, i.lastname AS initiator_lastname,
-               r1.name AS offered_resource, r2.name AS requested_resource
-        FROM trades t
-        JOIN players i ON t.initiator_id = i.player_id
-        JOIN resources r1 ON t.offered_resource_id = r1.resource_id
-        JOIN resources r2 ON t.requested_resource_id = r2.resource_id
-        WHERE t.recipient_id = %s AND t.status = 'pending'
-    """, (player_id,))
-    offers = cursor.fetchall()
+    cursor = get_cursor()
+    try:
+        cursor.execute("""
+            SELECT t.*, i.firstname AS initiator_firstname, i.lastname AS initiator_lastname,
+                r1.name AS offered_resource, r2.name AS requested_resource
+            FROM trades t
+            JOIN players i ON t.initiator_id = i.player_id
+            JOIN resources r1 ON t.offered_resource_id = r1.resource_id
+            JOIN resources r2 ON t.requested_resource_id = r2.resource_id
+            WHERE t.recipient_id = %s AND t.status = 'pending'
+        """, (player_id,))
+        offers = cursor.fetchall()
 
-    player_resources = get_player_resources(player_id)
+        player_resources = get_player_resources(player_id)
 
-    return render_template('actions/trade_offers.html', offers=offers, player_resources=player_resources)
+        return render_template('actions/trade_offers.html', offers=offers, player_resources=player_resources)
+    finally:
+        cursor.close()
 
 @app.route('/actions/accept_trade/<int:trade_id>', methods=['POST'])
 @login_required
 def accept_trade(trade_id):
     player_id = current_user.id
+    cursor = get_cursor()
     try:
-        db.start_transaction()      # *** Transaction started
+        g.db.start_transaction()      # *** Transaction started
 
         # Lock the trade row
         cursor.execute("""
@@ -467,7 +522,7 @@ def accept_trade(trade_id):
         """, (trade_id,))
         trade = cursor.fetchone()
         if not trade or trade['recipient_id'] != player_id:
-            db.rollback()           # *** Transaction ends if
+            g.db.rollback()           # *** Transaction ends if
             flash("Invalid or expired trade offer.", "danger")
             return redirect(url_for('trade_offers'))
 
@@ -502,7 +557,7 @@ def accept_trade(trade_id):
         recipient_qty = cursor.fetchone()['quantity']
 
         if initiator_qty < offered_quantity or recipient_qty < requested_quantity:
-            db.rollback()       # *** Transaction ends if
+            g.db.rollback()       # *** Transaction ends if
             flash("One or both players lack required resources.", "danger")
             return redirect(url_for('trade_offers'))
 
@@ -532,12 +587,14 @@ def accept_trade(trade_id):
             UPDATE trades SET status = 'completed' WHERE trade_id = %s
         """, (trade_id,))
 
-        db.commit()     # *** Transaction ends
+        g.db.commit()     # *** Transaction ends
         flash("Trade accepted and processed successfully.", "success")
 
     except Exception as e:
-        db.rollback()   # *** Transaction ends except
+        g.db.rollback()   # *** Transaction ends except
         flash("Trade failed: " + str(e), "danger")
+    finally:
+        cursor.close()
         
     return redirect(url_for('trade_offers'))
     
@@ -545,30 +602,38 @@ def accept_trade(trade_id):
 @login_required
 def reject_trade(trade_id):
     player_id = current_user.id
-    cursor.execute("""
-        UPDATE trades
-        SET status = 'cancelled'
-        WHERE trade_id = %s AND recipient_id = %s AND status = 'pending'
-    """, (trade_id, player_id))
-    # db.commit()   # not required with autocommit=True
-    flash("Trade rejected.", "info")
-    return redirect(url_for('trade_offers'))
+    cursor = get_cursor()
+    try:
+        cursor.execute("""
+            UPDATE trades
+            SET status = 'cancelled'
+            WHERE trade_id = %s AND recipient_id = %s AND status = 'pending'
+        """, (trade_id, player_id))
+        # db.commit()   # not required with autocommit=True
+        flash("Trade rejected.", "info")
+        return redirect(url_for('trade_offers'))
+    finally:
+        cursor.close()
 
 @app.route('/actions/leaderboard')
 @login_required
 @check_game_status('leaderboard')
 def leaderboard():
-    cursor.execute(""" 
-        SELECT 
-            RANK() OVER (ORDER BY credits DESC) AS p_rank,
-            firstname,
-            lastname,
-            credits
-        FROM players
-        ORDER BY p_rank, lastname;
-    """)
-    leaderboard = cursor.fetchall()
-    return render_template('actions/leaderboard.html', leaderboard=leaderboard)
+    cursor = get_cursor()
+    try:
+        cursor.execute(""" 
+            SELECT 
+                RANK() OVER (ORDER BY credits DESC) AS p_rank,
+                firstname,
+                lastname,
+                credits
+            FROM players
+            ORDER BY p_rank, lastname;
+        """)
+        leaderboard = cursor.fetchall()
+        return render_template('actions/leaderboard.html', leaderboard=leaderboard)
+    finally:
+        cursor.close()
 
 # ---- Run ----
 if __name__ == '__main__':
