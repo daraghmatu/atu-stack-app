@@ -250,8 +250,8 @@ def show_collect_page():
 
     # Block if too early
     if last_time:
-        if datetime.now() - last_time < timedelta(seconds=30):
-            flash("⏳ You must wait 30 seconds between collections.", "warning")
+        if datetime.now() - last_time < timedelta(seconds=1):       # Used to have this at 30s
+            flash("⏳ You must wait 1 second between collections.", "warning")
             return redirect(url_for('dashboard'))
 
     return render_template("actions/collect.html",
