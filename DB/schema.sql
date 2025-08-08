@@ -107,10 +107,10 @@ FOR EACH ROW
 BEGIN
     INSERT INTO player_resources (player_id, resource_id, quantity)
     VALUES
-        (NEW.player_id, (SELECT resource_id FROM resources WHERE name = 'Pizza'), 3),
-        (NEW.player_id, (SELECT resource_id FROM resources WHERE name = 'Coffee'), 3),
-        (NEW.player_id, (SELECT resource_id FROM resources WHERE name = 'Sleep'), 3),
-        (NEW.player_id, (SELECT resource_id FROM resources WHERE name = 'Study'), 3);
+        (NEW.player_id, (SELECT resource_id FROM resources WHERE name = 'Pizza'), FLOOR(RAND() * 6)),
+        (NEW.player_id, (SELECT resource_id FROM resources WHERE name = 'Coffee'), FLOOR(RAND() * 6)),
+        (NEW.player_id, (SELECT resource_id FROM resources WHERE name = 'Sleep'), FLOOR(RAND() * 6)),
+        (NEW.player_id, (SELECT resource_id FROM resources WHERE name = 'Study'), FLOOR(RAND() * 6));
 END;
 //
 
