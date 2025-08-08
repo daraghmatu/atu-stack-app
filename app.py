@@ -264,7 +264,7 @@ def perform_collect():
     player_id = current_user.id
     cursor = get_cursor()
     try:
-        # Get last collect time + num collects
+        # Get num collects
         cursor.execute("""
             SELECT MAX(collect_num) as cn
             FROM collect_log
@@ -300,16 +300,17 @@ def perform_collect():
             chosen = random.choice(resources)
             res_id = chosen['resource_id']
             res_name = chosen['name']
+            amount = random.randint(3, 10)
 
             # Plus one to resource
             cursor.execute("""
                 INSERT INTO player_resources (player_id, resource_id, quantity)
-                VALUES (%s, %s, 1)
-                ON DUPLICATE KEY UPDATE quantity = quantity + 1
-            """, (player_id, res_id))
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE quantity = quantity + %s
+            """, (player_id, res_id, amount, amount))
             # db.commit()   # not required with autocommit=True
 
-            description = f'1x {res_name}'
+            description = f'{amount}x {res_name}'
 
             if res_name == 'pizza':
                 description = description + ' 🍕'
@@ -326,7 +327,7 @@ def perform_collect():
             """, (player_id, description))
             # db.commit()   # not required with autocommit=True
 
-            flash(f"🍀 You collected 1x {res_name}!", "success")
+            flash(f"🍀 You collected {description}!", "success")
 
         # Log collect with incremented collect number
         cursor.execute("""
