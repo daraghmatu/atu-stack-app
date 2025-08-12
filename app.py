@@ -37,6 +37,24 @@ def teardown_request(exception):
 def get_cursor():
     return g.db.cursor(dictionary=True)
 
+@app.before_request
+def inject_pending_trade_count():
+    if current_user.is_authenticated:
+        cursor = get_cursor()
+        player_id = current_user.id
+        try:
+            cursor.execute("""
+                SELECT COUNT(*) AS cnt
+                FROM trades
+                WHERE recipient_id = %s AND status = 'pending'
+            """, (player_id,))
+            count = cursor.fetchone()['cnt']
+            g.pending_trade_count = count
+        finally:
+            cursor.close()
+    else:
+        g.pending_trade_count = 0
+
 # Flask decorator
 from functools import wraps
 def check_game_status(action_name=None):
