@@ -469,12 +469,16 @@ def trade():
                 offered_resource_id, offered_quantity,
                 requested_resource_id, requested_quantity
             ))
-            # db.commit()   # not required with autocommit=True
+			# db.commit()   # not required with autocommit=True
             flash("Trade offer created.", "success")
             return redirect(url_for('trade'))
 
         # GET method — list other players and resources
-        cursor.execute("SELECT player_id, firstname, lastname FROM players WHERE player_id != %s", (player_id,))
+        cursor.execute("""
+            SELECT player_id, firstname, lastname
+            FROM players
+            WHERE player_id != %s
+        """, (player_id,))
         other_players = cursor.fetchall()
 
         cursor.execute("SELECT resource_id, name FROM resources")
@@ -482,16 +486,7 @@ def trade():
 
         player_resources = get_player_resources(player_id)
 
-        return render_template('actions/trade.html', players=other_players, resources=resources, player_resources=player_resources)
-    finally:
-        cursor.close()
-
-@app.route('/actions/trade_offers')
-@login_required
-def trade_offers():
-    player_id = current_user.id
-    cursor = get_cursor()
-    try:
+        # Incoming trade offers
         cursor.execute("""
             SELECT t.*, i.firstname AS initiator_firstname, i.lastname AS initiator_lastname,
                 r1.name AS offered_resource, r2.name AS requested_resource
@@ -501,11 +496,16 @@ def trade_offers():
             JOIN resources r2 ON t.requested_resource_id = r2.resource_id
             WHERE t.recipient_id = %s AND t.status = 'pending'
         """, (player_id,))
-        offers = cursor.fetchall()
+        incoming_offers = cursor.fetchall()
 
-        player_resources = get_player_resources(player_id)
+        return render_template(
+            'actions/trade.html',
+            players=other_players,
+            resources=resources,
+            player_resources=player_resources,
+            incoming_offers=incoming_offers
+        )
 
-        return render_template('actions/trade_offers.html', offers=offers, player_resources=player_resources)
     finally:
         cursor.close()
 
@@ -525,7 +525,7 @@ def accept_trade(trade_id):
         if not trade or trade['recipient_id'] != player_id:
             g.db.rollback()           # *** Transaction ends if
             flash("Invalid or expired trade offer.", "danger")
-            return redirect(url_for('trade_offers'))
+            return redirect(url_for('trade'))
 
         initiator_id = trade['initiator_id']
         offered_resource_id = trade['offered_resource_id']
@@ -560,7 +560,7 @@ def accept_trade(trade_id):
         if initiator_qty < offered_quantity or recipient_qty < requested_quantity:
             g.db.rollback()       # *** Transaction ends if
             flash("One or both players lack required resources.", "danger")
-            return redirect(url_for('trade_offers'))
+            return redirect(url_for('trade'))
 
         # Perform the exchange
         cursor.execute("""
@@ -597,7 +597,7 @@ def accept_trade(trade_id):
     finally:
         cursor.close()
         
-    return redirect(url_for('trade_offers'))
+    return redirect(url_for('trade'))
     
 @app.route('/actions/reject_trade/<int:trade_id>', methods=['POST'])
 @login_required
@@ -612,7 +612,7 @@ def reject_trade(trade_id):
         """, (trade_id, player_id))
         # db.commit()   # not required with autocommit=True
         flash("Trade rejected.", "info")
-        return redirect(url_for('trade_offers'))
+        return redirect(url_for('trade'))
     finally:
         cursor.close()
 

@@ -15,6 +15,7 @@
 
   <hr>
 
+  <h4 class="mt-4">🤝 Offer Trade</h4>
   <form method="post">
     <div class="mt-4">
       <label for="recipient_id">Select a player to trade with:</label>
@@ -57,9 +58,30 @@
 
   <hr>
 
-<div>
-    <a href="{{ url_for('trade_offers') }}" class="btn btn-primary mt-4">View Incoming Trade Offers</a>
-</div>
+  <h4>📨 Incoming Offers</h4>
+  {% if incoming_offers %}
+    <ul>
+      {% for offer in incoming_offers %}
+        <li>
+          {{ offer.initiator_firstname }} {{ offer.initiator_lastname }} offers
+          <strong>{{ offer.offered_quantity }} {{ offer.offered_resource }}</strong>
+          for
+          <strong>{{ offer.requested_quantity }} {{ offer.requested_resource }}</strong>.
+
+          <form action="{{ url_for('accept_trade', trade_id=offer.trade_id) }}" method="post" style="display:inline;">
+            <button type="submit" class="btn btn-success btn-sm">Accept</button>
+          </form>
+          <form action="{{ url_for('reject_trade', trade_id=offer.trade_id) }}" method="post" style="display:inline;">
+            <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No incoming trade offers at the moment.</p>
+  {% endif %}
+
+  <hr>
 
 <div>
     <a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-4">Back to Dashboard</a>
