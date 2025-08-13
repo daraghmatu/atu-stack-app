@@ -28,7 +28,7 @@
         {% endif %}
     </nav>
     {% if g.pending_trade_count > 0 %}
-    <div class="alert alert-warning position-fixed bottom-0 end-0 m-3 shadow">
+    <div class="alert alert-warning position-fixed bottom-0 end-0 m-3 shadow" style="z-index: 1100;">
         📢 You have {{ g.pending_trade_count }} pending trade offer{% if g.pending_trade_count > 1 %}s{% endif %}!
         <a href="{{ url_for('trade') }}" class="alert-link">View Trades</a>
     </div>
