@@ -504,7 +504,7 @@ def trade():
 
         player_resources = get_player_resources(player_id)
 
-        # Incoming trade offers
+        # Incoming trades
         cursor.execute("""
             SELECT t.*, i.firstname AS initiator_firstname, i.lastname AS initiator_lastname,
                 r1.name AS offered_resource, r2.name AS requested_resource
@@ -512,16 +512,31 @@ def trade():
             JOIN players i ON t.initiator_id = i.player_id
             JOIN resources r1 ON t.offered_resource_id = r1.resource_id
             JOIN resources r2 ON t.requested_resource_id = r2.resource_id
-            WHERE t.recipient_id = %s AND t.status = 'pending'
+            WHERE t.recipient_id = %s
+            ORDER BY t.trade_id DESC
         """, (player_id,))
-        incoming_offers = cursor.fetchall()
+        incoming_trades = cursor.fetchall()
+
+        # Outgoing trades
+        cursor.execute("""
+            SELECT t.*, r.firstname AS recipient_firstname, r.lastname AS recipient_lastname,
+                r1.name AS offered_resource, r2.name AS requested_resource
+            FROM trades t
+            JOIN players r ON t.recipient_id = r.player_id
+            JOIN resources r1 ON t.offered_resource_id = r1.resource_id
+            JOIN resources r2 ON t.requested_resource_id = r2.resource_id
+            WHERE t.initiator_id = %s
+            ORDER BY t.trade_id DESC
+        """, (player_id,))
+        outgoing_trades = cursor.fetchall()
 
         return render_template(
             'actions/trade.html',
             players=other_players,
             resources=resources,
             player_resources=player_resources,
-            incoming_offers=incoming_offers
+            incoming_trades=incoming_trades,
+            outgoing_trades=outgoing_trades
         )
 
     finally:

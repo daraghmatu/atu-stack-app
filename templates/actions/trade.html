@@ -3,85 +3,145 @@
 {% block content %}
 <h2>🔁 Trade Resources</h2>
 
-  <h4 class="mt-4">📦 Current Resources</h4>
-  <ul class="list-group">
-      {% for r in player_resources %}
-          <li class="list-group-item d-flex justify-content-between align-items-center">
-              {{ r.name | capitalize }}
-              <span class="badge bg-primary rounded-pill">{{ r.quantity }}</span>
-          </li>
+<h4 class="mt-4">📦 Current Resources</h4>
+<ul class="list-group">
+    {% for r in player_resources %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            {{ r.name | capitalize }}
+            <span class="badge bg-primary rounded-pill">{{ r.quantity }}</span>
+        </li>
+    {% endfor %}
+</ul>
+
+<h4 class="mt-4">🤝 Offer Trade</h4>
+<form method="post">
+  <div class="mt-4">
+    <label for="recipient_id">Select a player to trade with:</label>
+    <select name="recipient_id" required>
+      <option value="" disabled selected>Select Player</option>
+      {% for player in players %}
+        <option value="{{ player.player_id }}">{{ player.firstname }} {{ player.lastname }}</option>
       {% endfor %}
-  </ul>
+    </select>
+  </div>
 
-  <hr>
+  <div class="mt-4">
+    <h4>Your offer:</h4>
+    <label for="offered_resource_id">Resource:</label>
+    <select name="offered_resource_id" required>
+      {% for r in resources %}
+        <option value="{{ r.resource_id }}">{{ r.name }}</option>
+      {% endfor %}
+    </select>
+    <label for="offered_quantity">Quantity:</label>
+    <input type="number" name="offered_quantity" min="1" required>
+  </div>
 
-  <h4 class="mt-4">🤝 Offer Trade</h4>
-  <form method="post">
-    <div class="mt-4">
-      <label for="recipient_id">Select a player to trade with:</label>
-      <select name="recipient_id" required>
-        <option value="" disabled selected>Select Player</option>
-        {% for player in players %}
-          <option value="{{ player.player_id }}">{{ player.firstname }} {{ player.lastname }}</option>
-        {% endfor %}
-      </select>
-    </div>
+  <div class="mt-4">
+    <h4>You want in return:</h4>
+    <label for="requested_resource_id">Resource:</label>
+    <select name="requested_resource_id" required>
+      {% for r in resources %}
+        <option value="{{ r.resource_id }}">{{ r.name }}</option>
+      {% endfor %}
+    </select>
+    <label for="requested_quantity">Quantity:</label>
+    <input type="number" name="requested_quantity" min="1" required>
+  </div>
 
-    <div class="mt-4">
-      <h4>Your offer:</h4>
-      <label for="offered_resource_id">Resource:</label>
-      <select name="offered_resource_id" required>
-        {% for r in resources %}
-          <option value="{{ r.resource_id }}">{{ r.name }}</option>
-        {% endfor %}
-      </select>
-      <label for="offered_quantity">Quantity:</label>
-      <input type="number" name="offered_quantity" min="1" required>
-    </div>
+  <div class="mt-4">
+      <button type="submit">Send Trade Offer</button>
+  </div>
+</form>
 
-    <div class="mt-4">
-      <h4>You want in return:</h4>
-      <label for="requested_resource_id">Resource:</label>
-      <select name="requested_resource_id" required>
-        {% for r in resources %}
-          <option value="{{ r.resource_id }}">{{ r.name }}</option>
-        {% endfor %}
-      </select>
-      <label for="requested_quantity">Quantity:</label>
-      <input type="number" name="requested_quantity" min="1" required>
-    </div>
+<hr>
 
-    <div class="mt-4">
-        <button type="submit">Send Trade Offer</button>
-    </div>
-  </form>
+<style>
+/* Soft background colours for table rows – target td for Bootstrap override */
+tr.status-pending td {
+    background-color: #fbe8aa !important; /* light orange */
+}
+tr.status-completed td {
+    background-color: #aff6bf !important; /* light green */
+}
+tr.status-cancelled td,
+tr.status-rejected td {
+    background-color: #f8b4ba !important; /* light red */
+}
+</style>
 
-  <hr>
-
-  <h4>📨 Incoming Offers</h4>
-  {% if incoming_offers %}
-    <ul>
-      {% for offer in incoming_offers %}
-        <li>
-          {{ offer.initiator_firstname }} {{ offer.initiator_lastname }} offers
-          <strong>{{ offer.offered_quantity }} {{ offer.offered_resource }}</strong>
-          for
-          <strong>{{ offer.requested_quantity }} {{ offer.requested_resource }}</strong>.
-
-          <form action="{{ url_for('accept_trade', trade_id=offer.trade_id) }}" method="post" style="display:inline;">
+<h4>📥 Incoming Trades</h4>
+{% if incoming_trades %}
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>From</th>
+      <th>Offer</th>
+      <th>Request</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for trade in incoming_trades %}
+    <tr class="status-{{ trade.status }}">
+      <td>{{ trade.initiator_firstname }} {{ trade.initiator_lastname }}</td>
+      <td>{{ trade.offered_quantity }} {{ trade.offered_resource }}</td>
+      <td>{{ trade.requested_quantity }} {{ trade.requested_resource }}</td>
+      <td>
+        {% if trade.status == 'pending' %}
+          <form action="{{ url_for('accept_trade', trade_id=trade.trade_id) }}" method="post" style="display:inline;">
             <button type="submit" class="btn btn-success btn-sm">Accept</button>
           </form>
-          <form action="{{ url_for('reject_trade', trade_id=offer.trade_id) }}" method="post" style="display:inline;">
+          <form action="{{ url_for('reject_trade', trade_id=trade.trade_id) }}" method="post" style="display:inline;">
             <button type="submit" class="btn btn-danger btn-sm">Reject</button>
           </form>
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p>No incoming trade offers at the moment.</p>
-  {% endif %}
+        {% elif trade.status == 'completed' %}
+          Completed
+        {% elif trade.status in ['cancelled', 'rejected'] %}
+          Declined
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <p>No incoming trades.</p>
+{% endif %}
 
-  <hr>
+<h4>📤 Outgoing Trades</h4>
+{% if outgoing_trades %}
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>To</th>
+      <th>Offer</th>
+      <th>Request</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for trade in outgoing_trades %}
+    <tr class="status-{{ trade.status }}">
+      <td>{{ trade.recipient_firstname }} {{ trade.recipient_lastname }}</td>
+      <td>{{ trade.offered_quantity }} {{ trade.offered_resource }}</td>
+      <td>{{ trade.requested_quantity }} {{ trade.requested_resource }}</td>
+      <td>
+        {% if trade.status == 'pending' %}
+          Pending
+        {% elif trade.status == 'completed' %}
+          Completed
+        {% elif trade.status in ['cancelled', 'rejected'] %}
+          Declined
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <p>No outgoing trades.</p>
+{% endif %}
 
 <div>
     <a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-4">Back to Dashboard</a>
