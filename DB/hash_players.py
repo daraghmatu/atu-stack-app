@@ -3,7 +3,7 @@ import bcrypt
 import re
 
 # Read the CSV file. This file has been removed from the VM for security
-with open('2425_game_players.csv', newline='', encoding='utf-8-sig') as csvfile:
+with open('game_players.csv', newline='', encoding='utf-8-sig') as csvfile:
     reader = csv.DictReader(csvfile)
     for row in reader:
         firstname = row['first_name'].title()
